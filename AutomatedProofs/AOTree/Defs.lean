@@ -146,7 +146,66 @@ lemma sum_prod_erase_le_one
     {n : ℕ} (hn : n ≥ 2) (q : Fin n → NNReal)
     (hq : ∀ i, q i ≤ 1 / 2) :
     ∑ i : Fin n, ∏ j : Fin n, (if j = i then (1 : NNReal) else q j) ≤ 1 := by
-  sorry
+  induction n with
+  | zero => omega
+  | succ n ih =>
+      by_cases hn1 : n = 1
+      · -- Base case: n + 1 = 2
+        subst hn1
+        show ∑ i : Fin 2, ∏ j : Fin 2, (if j = i then (1 : NNReal) else q j) ≤ 1
+        rw [Fin.sum_univ_two, Fin.prod_univ_two, Fin.prod_univ_two]
+        simp only [Fin.isValue, ite_true, ite_false, one_mul, mul_one]
+        calc q 1 + q 0 ≤ 1 / 2 + 1 / 2 := add_le_add (hq 1) (hq 0)
+          _ = 1 := by norm_num
+      · -- Inductive step: n + 1 ≥ 3, so n ≥ 2
+        have hn_ge2 : n ≥ 2 := by omega
+        let q' : Fin n → NNReal := fun i => q i.castSucc
+        have hq'_le : ∀ i, q' i ≤ 1 / 2 := fun i => hq i.castSucc
+        have ih' : ∑ i : Fin n, ∏ j : Fin n, (if j = i then (1 : NNReal) else q' j) ≤ 1 :=
+          ih hn_ge2 q' hq'_le
+        rw [Fin.sum_univ_castSucc]
+        have hne : ∀ j : Fin n, (j.castSucc : Fin (n + 1)) ≠ Fin.last n :=
+          fun j => (Fin.castSucc_lt_last j).ne
+        -- Bound the last term
+        have hlast_term : ∏ j : Fin (n + 1), (if j = Fin.last n then (1 : NNReal) else q j) ≤ 1 / 2 := by
+          rw [Fin.prod_univ_castSucc]
+          simp only [ite_true, mul_one]
+          simp_rw [hne _, if_false]
+          calc ∏ j : Fin n, q j.castSucc
+              ≤ (1 / 2) ^ (Finset.univ : Finset (Fin n)).card :=
+                  Finset.prod_le_pow_card Finset.univ _ (1 / 2) (fun i _ => hq i.castSucc)
+            _ = (1 / 2) ^ n := by rw [Finset.card_fin]
+            _ ≤ (1 / 2) ^ 1 := by
+                apply pow_le_pow_of_le_one (by norm_num) (by norm_num); omega
+            _ = 1 / 2 := pow_one _
+        -- Factor each castSucc product
+        have hfactor : ∀ i : Fin n,
+            ∏ j : Fin (n + 1), (if j = i.castSucc then (1 : NNReal) else q j) =
+            (∏ j : Fin n, (if j = i then (1 : NNReal) else q' j)) * q (Fin.last n) := by
+          intro i
+          rw [Fin.prod_univ_castSucc]
+          congr 1
+          · apply Finset.prod_congr rfl
+            intro j _
+            simp only [q']
+            by_cases hjei : j = i
+            · simp [hjei]
+            · have : j.castSucc ≠ i.castSucc := Fin.castSucc_injective _ |>.ne hjei
+              simp [hjei, this]
+          · have hlast_ne : Fin.last n ≠ i.castSucc :=
+              fun h => absurd h.symm (Fin.castSucc_lt_last i).ne
+            simp [hlast_ne]
+        -- Bound the castSucc sum
+        have hcast_sum : ∑ i : Fin n, ∏ j : Fin (n + 1),
+            (if j = i.castSucc then (1 : NNReal) else q j) ≤ 1 / 2 := by
+          simp_rw [hfactor, ← Finset.sum_mul]
+          calc (∑ i : Fin n, ∏ j : Fin n, (if j = i then (1 : NNReal) else q' j)) * q (Fin.last n)
+              ≤ 1 * (1 / 2) := mul_le_mul ih' (hq (Fin.last n)) (zero_le _) (by norm_num)
+            _ = 1 / 2 := one_mul _
+        calc ∑ i : Fin n, ∏ j : Fin (n + 1), (if j = i.castSucc then (1 : NNReal) else q j) +
+              ∏ j : Fin (n + 1), (if j = Fin.last n then (1 : NNReal) else q j)
+            ≤ 1 / 2 + 1 / 2 := add_le_add hcast_sum hlast_term
+          _ = 1 := by norm_num
 
 /-
 PROBLEM
