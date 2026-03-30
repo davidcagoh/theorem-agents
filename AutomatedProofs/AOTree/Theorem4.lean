@@ -111,7 +111,9 @@ theorem sum_prod_erase_le_one'
 
 /-! ## Main theorem -/
 
-/-- **Theorem 4 (Sequential ≤ Parallel).** For n ≥ 2 independent subgoals
+/-
+PROBLEM
+**Theorem 4 (Sequential ≤ Parallel).** For n ≥ 2 independent subgoals
     with success probabilities each ≤ 1/2, the sum of reciprocals ≤ their product.
 
     Proof:
@@ -124,7 +126,22 @@ theorem sum_prod_erase_le_one'
     4. Apply sum_prod_erase_le_one'.
 
     KEY LEMMAS: one_div, Finset.prod_inv_distrib, le_div_iff₀,
-                Finset.sum_mul, Finset.prod_erase_mul, sum_prod_erase_le_one'. -/
+                Finset.sum_mul, Finset.prod_erase_mul, sum_prod_erase_le_one'.
+
+PROVIDED SOLUTION
+Goal: ∏_j q j = (∏_j (if j=i then 1 else q j)) * q i
+
+Use symm of Finset.prod_erase_mul on q to get: ∏_{j in univ.erase i} q j * q i = ∏_j q j
+Then show ∏_j (if j=i then 1 else q j) = ∏_{j in univ.erase i} q j.
+
+Approach:
+  rw [← Finset.prod_erase_mul Finset.univ q (Finset.mem_univ i)]
+  congr 1
+  apply Finset.prod_congr rfl
+  intro j hj
+  have hne : j ≠ i := (Finset.mem_erase.mp hj).1
+  simp [hne]
+-/
 theorem sequential_le_parallel
     {n : ℕ} (hn : n ≥ 2)
     (q : Fin n → NNReal)
@@ -158,20 +175,37 @@ theorem sequential_le_parallel
          Step 2: (∏_{j≠i} q j) * q i = ∏_j q j
            By: Finset.prod_erase_mul Finset.univ q (Finset.mem_univ i)
          KEY LEMMAS: Finset.prod_erase_mul, Finset.mem_erase, Finset.prod_congr -/
-      sorry
+      simp +decide [ Finset.prod_ite, Finset.filter_ne', Finset.filter_eq', hqi_ne ];
+      rw [ Finset.prod_erase_mul _ _ ( Finset.mem_univ _ ) ]
     rw [one_div, hprod_split, mul_comm (∏ _ : Fin n, _) _, ← mul_assoc,
         inv_mul_cancel₀ hqi_ne, one_mul]
   rw [hexpand]
   exact sum_prod_erase_le_one' hn q hq hqpos
 
-/-- **Theorem 4 (strict inequality for q < 1/2).**
+/-
+PROBLEM
+**Theorem 4 (strict inequality for q < 1/2).**
     When all qᵢ < 1/2 (strict), the inequality is strict.
 
     Proof: use sequential_le_parallel for ≤, then show ≠ by contradiction.
     If ∑ 1/qᵢ = ∏ 1/qᵢ, then (∑ 1/qᵢ) * ∏ qᵢ = 1.
     But LHS = ∑ᵢ ∏_{j≠i} qⱼ < 1 since each qᵢ < 1/2 strictly.
 
-    KEY LEMMAS: lt_of_le_of_ne, ne_of_lt, add_lt_add. -/
+    KEY LEMMAS: lt_of_le_of_ne, ne_of_lt, add_lt_add.
+
+PROVIDED SOLUTION
+We have hsum_times_prod : (∑ 1/qᵢ) * ∏ qᵢ = 1.
+
+Step 1: Show (∑ 1/qᵢ) * ∏ qᵢ = ∑ᵢ ∏_j (if j=i then 1 else qⱼ), same expansion as in sequential_le_parallel.
+
+Step 2: Prove sum_prod_erase_lt_one: ∑ᵢ ∏_j (if j=i then 1 else qⱼ) < 1, by the same induction as sum_prod_erase_le_one' but using strict inequalities since each q i < 1/2.
+  Base (n=2): q 1 + q 0 < 1/2 + 1/2 = 1 by add_lt_add.
+  Inductive step: same structure but use strict inequality on at least one side of the addition. The cast_sum part: (∑ erased prods) * q(last) ≤ 1 * q(last) < 1 * (1/2) = 1/2 since ih gives ≤ 1 and q(last) < 1/2. The last_term: ∏ q j.castSucc ≤ (1/2)^n ≤ 1/2 (non-strict suffices). Total < 1/2 + 1/2 = 1 since one summand is strict.
+
+Step 3: From steps 1 and 2, we get (∑ 1/qᵢ) * ∏ qᵢ < 1, contradicting hsum_times_prod via exact absurd hsum_times_prod (ne_of_lt h).
+
+Key: prove the strict version as a local have, do the expansion as a local have, combine for contradiction.
+-/
 theorem sequential_lt_parallel
     {n : ℕ} (hn : n ≥ 2)
     (q : Fin n → NNReal)
@@ -188,8 +222,38 @@ theorem sequential_lt_parallel
     have hsum_times_prod : (∑ i : Fin n, 1 / q i) * ∏ i : Fin n, q i = 1 := by
       have h1 : ∑ i : Fin n, 1 / q i = 1 / ∏ i, q i := by rw [← hprod_inv]; exact heq
       rw [h1, div_mul_cancel₀ 1 hprod_ne]
-    sorry
-    /- PROOF SKETCH FOR ARISTOTLE:
+    have hprod_lt : (∑ i, (1 / q i)) * (∏ i, q i) < 1 := by
+      -- By definition of success probability, we have:
+      have h_def : (∑ i : Fin n, 1 / q i) * (∏ i : Fin n, q i) = ∑ i : Fin n, ∏ j : Fin n, if j = i then (1 : NNReal) else q j := by
+        simp +decide [ Finset.sum_mul _ _ _, Finset.prod_ite, Finset.filter_ne', Finset.filter_eq' ];
+        exact Finset.sum_congr rfl fun i hi => by rw [ inv_mul_eq_div, ← Finset.prod_erase_mul _ _ hi, mul_div_cancel_right₀ _ ( ne_of_gt ( hqpos i ) ) ] ;
+      have hsum_lt_one : ∀ (n : ℕ) (hn : n ≥ 2) (q : Fin n → NNReal), (∀ i, q i < 1 / 2) → (∀ i, 0 < q i) → ∑ i : Fin n, ∏ j : Fin n, (if j = i then (1 : NNReal) else q j) < 1 := by
+        intros n hn q hq hqpos
+        induction' n, Nat.succ_le_iff.mpr hn using Nat.le_induction with n hn ih;
+        · simp +decide [ Fin.sum_univ_two, Fin.prod_univ_two ];
+          convert add_lt_add ( hq 1 ) ( hq 0 ) using 1 ; ring;
+        · -- Split the sum into the last term and the sum over the first n terms.
+          have h_split : ∑ i : Fin (n + 1), ∏ j : Fin (n + 1), (if j = i then (1 : NNReal) else q j) = (∏ j : Fin n, q (Fin.castSucc j)) + q (Fin.last n) * ∑ i : Fin n, ∏ j : Fin n, (if j = i then (1 : NNReal) else q (Fin.castSucc j)) := by
+            simp +decide [ Fin.sum_univ_castSucc, Fin.prod_univ_castSucc, Finset.prod_erase ];
+            simp +decide [ Fin.ext_iff, Finset.mul_sum _ _ _, mul_comm, add_comm ];
+            exact Finset.sum_congr rfl fun i hi => by rw [ if_neg ( by linarith [ Fin.is_lt i ] ) ] ;
+          have h_prod_lt_half : ∏ j : Fin n, q (Fin.castSucc j) < (1 / 2) ^ n := by
+            have h_prod_lt_half : ∏ j : Fin n, q (Fin.castSucc j) < ∏ j : Fin n, (1 / 2 : NNReal) := by
+              apply_rules [ Finset.prod_lt_prod ] <;> norm_num;
+              · exact fun i => hqpos _;
+              · exact fun i => le_of_lt ( hq _ );
+              · exact ⟨ ⟨ 0, by linarith ⟩, hq _ ⟩;
+            simpa using h_prod_lt_half;
+          have h_sum_lt_one : ∑ i : Fin n, ∏ j : Fin n, (if j = i then (1 : NNReal) else q (Fin.castSucc j)) < 1 := by
+            exact ih ‹_› _ ( fun i => hq _ ) ( fun i => hqpos _ );
+          have h_final : (1 / 2 : NNReal) ^ n + (1 / 2 : NNReal) * 1 ≤ 1 := by
+            rcases n with ( _ | _ | n ) <;> norm_num [ pow_succ' ] at *;
+            rw [ ← NNReal.coe_le_coe ] ; norm_num ; ring ; norm_num [ pow_succ' ] ; nlinarith [ pow_le_pow_of_le_one ( by norm_num : ( 0 : ℝ ) ≤ 1 / 2 ) ( by norm_num ) ( show n ≥ 0 by norm_num ) ] ;
+          exact h_split.symm ▸ lt_of_lt_of_le ( add_lt_add_of_lt_of_le h_prod_lt_half ( mul_le_mul' ( le_of_lt ( hq _ ) ) h_sum_lt_one.le ) ) ( by simpa using h_final );
+      exact h_def.symm ▸ hsum_lt_one n hn q hq hqpos
+    exact hprod_lt.ne hsum_times_prod;
+
+/- PROOF SKETCH FOR ARISTOTLE:
        We have hsum_times_prod : (∑ 1/qᵢ) * ∏ qᵢ = 1.
        From hexpand: (∑ 1/qᵢ) * ∏ qᵢ = ∑ᵢ ∏_j (if j=i then 1 else qⱼ).
        Since each qᵢ < 1/2 (strict), prove ∑ᵢ ∏_j (if j=i then 1 else qⱼ) < 1.
