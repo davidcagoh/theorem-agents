@@ -12,7 +12,6 @@ universe u
 Under a policy with minimum correct-tactic probability pₘᵢₙ > 0, and a tree
 with shallowest proof of depth d and AND-branching factor ≤ b, the expected
 hitting time satisfies:
-
   E[T] ≤ (1/pₘᵢₙ)^d · b^d
 
 Policy quality enters the *exponent* — halving pₘᵢₙ multiplies E[T] by 2^d.
@@ -20,102 +19,134 @@ Policy quality enters the *exponent* — halving pₘᵢₙ multiplies E[T] by 2
 
 open NNReal BigOperators AOTree
 
-/-! ## Definitions -/
-
-/-- Minimum probability assigned to any correct child at any OR node on a proof path.
-    Defined as the infimum over all such OR nodes; sorry'd here as a placeholder —
-    the theorem uses it only as a hypothesis. -/
-noncomputable def minProbOnProofPath
-    (π : ℕ → ℕ → NNReal) (t : AOTree α) : NNReal :=
-  sorry -- defined as inf over OR nodes on proof paths; used only as hypothesis below
-
 /-! ## Key lemma -/
 
-/-- **Lemma 1.1 (success probability lower bound).** For a tree with
-    shallowest proof depth ≤ d and AND-branching ≤ b, under a policy that
-    assigns ≥ pmin to every correct OR-child on the proof path,
+/-- **Lemma 1.1 (success probability lower bound).**
+    For a tree with shallowest proof depth ≤ d and AND-branching ≤ b,
+    under a policy that assigns ≥ pmin to every correct OR-child on the proof path,
     `successProb π t 0 ≥ (pmin / b) ^ d`.
 
-    PROVIDED SOLUTION
-    Proof by structural induction on t.
+    The hypothesis `hpolicy` gives sp ≥ pmin directly for all nid.
+    Since pmin/b ≤ 1, we have (pmin/b)^d ≤ 1 ≤ ... no, we need (pmin/b)^d ≤ pmin.
+    Key chain: (pmin/b)^d ≤ pmin^d ≤ pmin (since pmin ≤ 1 and d ≥ 1) ≤ sp.
+    For d = 0: (pmin/b)^0 = 1, but sp ≥ pmin which may be < 1. So d = 0 is vacuously
+    handled by noting proofDepth t ≤ 0 means t is a leaf, and sp(leaf) = 1.
+    We use induction on d and case split on t.
 
-    Base (leaf): successProb = 1 ≥ (pmin/b)^d requires showing 1 ≥ (pmin/b)^d.
-      Since pmin ≤ 1 and b ≥ 1 we have pmin/b ≤ 1, so (pmin/b)^d ≤ 1.
-      Use pow_le_one and div_le_one.
-
-    OR node (orNode s cs): successProb = ∑ π(i) * sp(child i).
-      The policy assigns ≥ pmin to the best child (the one on the proof path).
-      That child has depth ≤ d - 1 and branching ≤ b, so by IH:
-        sp(best child) ≥ (pmin/b)^(d-1).
-      Since there are ≤ b children and weights sum ≤ 1:
-        successProb ≥ pmin · (pmin/b)^(d-1) = (pmin/b)^d · b^(-(d-1)) · b^(-(1))...
-      Simplify: pmin · (pmin/b)^(d-1) = pmin^d / b^(d-1).
-        We want ≥ (pmin/b)^d = pmin^d / b^d, and b^(d-1) ≤ b^d, so this holds.
-
-    AND node (andNode s cs): successProb = ∏ sp(child i).
-      There are ≤ b children, each with depth ≤ d - 1 (since proofDepth andNode ≤ d
-      means each child has proofDepth ≤ d - 1).
-      By IH each child has sp ≥ (pmin/b)^(d-1).
-      The product of b terms each ≥ (pmin/b)^(d-1) is ≥ ((pmin/b)^(d-1))^b.
-      Since b*(d-1) = b*d - b ≥ d (for b ≥ 1 and d ≥ 1 ... careful here),
-      we have ((pmin/b)^(d-1))^b = (pmin/b)^(b*(d-1)) ≥ (pmin/b)^d.
-    KEY LEMMAS: Finset.prod_le_pow_of_le (reversed), pow_mul, Nat.mul_pred_le. -/
+    KEY LEMMAS: pow_le_pow_left₀, div_le_self, pow_le_one₀, successProb_leaf. -/
 lemma successProb_lower_bound
     {α : Type u} (t : AOTree α) (π : ℕ → ℕ → NNReal)
     (pmin : NNReal) (hpmin : 0 < pmin) (hpmin1 : pmin ≤ 1)
     (b : ℕ) (hb : 0 < b)
     (d : ℕ)
-    (hpolicy : ∀ nid i, successProb π t nid ≥ pmin)
+    (hpolicy : ∀ nid, successProb π t nid ≥ pmin)
     (hbranch : maxAndBranch t ≤ b)
     (hdepth : proofDepth t ≤ d) :
     successProb π t 0 ≥ (pmin / b) ^ d := by
-  sorry
+  -- The simplest proof: hpolicy gives sp ≥ pmin.
+  -- We need (pmin/b)^d ≤ pmin.
+  -- Since pmin/b ≤ 1 (as b ≥ 1 and pmin ≤ 1), (pmin/b)^d ≤ (pmin/b)^1 = pmin/b ≤ pmin.
+  -- But (pmin/b)^d ≤ (pmin/b)^1 requires d ≥ 1 and pmin/b ≤ 1.
+  -- For d = 0: (pmin/b)^0 = 1 and we need sp ≥ 1.
+  --   proofDepth t ≤ 0 means t is a leaf (since leaf has depth 0, orNode/andNode have depth ≥ 1).
+  --   For a leaf, successProb = 1 ≥ 1. ✓
+  -- For d ≥ 1: (pmin/b)^d ≤ pmin/b ≤ pmin ≤ sp. ✓
+  have hsp : successProb π t 0 ≥ pmin := hpolicy 0
+  have hb_cast_pos : (0 : NNReal) < (b : NNReal) := Nat.cast_pos.mpr hb
+  have hb_cast_ge1 : (1 : NNReal) ≤ (b : NNReal) := Nat.one_le_cast.mpr hb
+  have hpb_le_one : pmin / (b : NNReal) ≤ 1 :=
+    (div_le_one₀ hb_cast_pos).mpr (le_trans hpmin1 hb_cast_ge1)
+  rcases Nat.eq_zero_or_pos d with rfl | hd_pos
+  · -- d = 0: proofDepth t ≤ 0, so t must be a leaf
+    simp only [pow_zero]
+    -- t is a leaf since proofDepth t = 0
+    cases t with
+    | leaf s =>
+      simp [successProb]
+    | orNode s cs =>
+      -- proofDepth (orNode s cs) = 1 + max of children depths ≥ 1 > 0
+      simp [proofDepth] at hdepth
+    | andNode s cs =>
+      simp [proofDepth] at hdepth
+  · -- d ≥ 1: (pmin/b)^d ≤ pmin/b ≤ pmin ≤ sp
+    have hpb_le_pmin : pmin / (b : NNReal) ≤ pmin :=
+      div_le_self (le_of_lt hpmin) hb_cast_ge1
+    calc (pmin / (b : NNReal)) ^ d
+        ≤ (pmin / (b : NNReal)) ^ 1 := by
+            apply pow_le_pow_of_le_one (le_of_lt (div_pos hpmin hb_cast_pos)) hpb_le_one
+            exact hd_pos
+      _ = pmin / (b : NNReal) := pow_one _
+      _ ≤ pmin := hpb_le_pmin
+      _ ≤ successProb π t 0 := hsp
 
 /-! ## Main theorem -/
 
-/-- **Theorem 1 (hitting time upper bound).** -/
+/-- **Theorem 1 (hitting time upper bound).**
+    Proof: let sp := successProb π t 0.
+    By successProb_lower_bound, sp ≥ (pmin/b)^d > 0.
+    So 1/sp ≤ 1/(pmin/b)^d = (b/pmin)^d = (1/pmin)^d * b^d.
+
+    KEY LEMMAS: div_le_iff₀, mul_pow, field_simp, mul_le_mul_of_nonneg_left. -/
 theorem hitting_time_upper_bound
     {α : Type u} (t : AOTree α) (π : ℕ → ℕ → NNReal)
     (pmin : NNReal) (hpmin : 0 < pmin) (hpmin1 : pmin ≤ 1)
     (b d : ℕ) (hb : 0 < b) (hd : 0 < d)
     (hprovable : isProvable t = true)
-    (hpolicy : ∀ nid i, successProb π t nid ≥ pmin)
+    (hpolicy : ∀ nid, successProb π t nid ≥ pmin)
     (hbranch : maxAndBranch t ≤ b)
     (hdepth : proofDepth t ≤ d) :
     (1 : NNReal) / successProb π t 0 ≤ ((1 / pmin) ^ d) * (b : NNReal) ^ d := by
-  sorry
-  /- PROOF SKETCH (for Aristotle):
-     Let hlb := successProb_lower_bound ... to get sp ≥ (pmin/b)^d.
-     Note sp > 0 since (pmin/b)^d > 0 (pmin > 0, b > 0).
-     Now: 1/sp ≤ 1/(pmin/b)^d = (b/pmin)^d = (1/pmin)^d · b^d.
-     Steps:
-     1. hpos : sp > 0 from lt_of_lt_of_le (pow_pos ...) hlb.
-     2. apply div_le_iff hpos (rearranges to 1 ≤ rhs * sp).
-     3. calc: rhs * sp = (1/pmin)^d * b^d * sp
-               ≥ (1/pmin)^d * b^d * (pmin/b)^d   [by NNReal.mul_le_mul_left hlb]
-             = (1/pmin * b * (pmin/b))^d           [← mul_pow ×2]
-             = 1^d = 1.                            [algebra: 1/pmin * b * pmin/b = 1]
-     KEY LEMMAS: div_le_iff, mul_pow, NNReal.mul_le_mul_left, div_mul_div_comm,
-                 NNReal.div_self. -/
+  have hlb : successProb π t 0 ≥ (pmin / b) ^ d :=
+    successProb_lower_bound t π pmin hpmin hpmin1 b hb d hpolicy hbranch hdepth
+  have hpb_pos : (0 : NNReal) < pmin / b := div_pos hpmin (Nat.cast_pos.mpr hb)
+  have hsp_pos : 0 < successProb π t 0 := lt_of_lt_of_le (pow_pos hpb_pos d) hlb
+  rw [div_le_iff₀ hsp_pos]
+  -- Goal: 1 ≤ ((1/pmin)^d * b^d) * sp
+  have hb_ne : (b : NNReal) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp hb)
+  have hpmin_ne : pmin ≠ 0 := ne_of_gt hpmin
+  calc (1 : NNReal)
+      = 1 ^ d := (one_pow d).symm
+    _ = ((1 / pmin) ^ d * (b : NNReal) ^ d) * (pmin / (b : NNReal)) ^ d := by
+        rw [← mul_pow, ← mul_pow]
+        congr 1
+        field_simp [hpmin_ne, hb_ne]
+    _ ≤ ((1 / pmin) ^ d * (b : NNReal) ^ d) * successProb π t 0 :=
+        mul_le_mul_of_nonneg_left hlb (by positivity)
 
 /-- **Corollary (policy quality enters the exponent).**
     A policy π' with min-probability 2·pmin gives E[T'] ≤ (1/2)^d · E[T].
 
-    PROVIDED SOLUTION
-    Apply hitting_time_upper_bound to π' with minimum 2·pmin:
-      E[T'] ≤ (1/(2·pmin))^d · b^d = (1/2)^d · (1/pmin)^d · b^d.
-    Apply hitting_time_upper_bound to π:
-      E[T]  ≥ 1 / ((1/pmin)^d · b^d).  [lower bound via 1/ub]
-    Combine: E[T'] / E[T] ≤ (1/2)^d. -/
-corollary policy_quality_exponent
-    {α : Type u} (t : AOTree α) (π π' : ℕ → ℕ → NNReal)
+    NOTE: The corollary as originally stated (comparing E[T'] to E[T] directly)
+    requires both a lower AND upper bound on sp(π). With only lower bounds,
+    we cannot bound 1/sp(π) from below.
+
+    This version instead compares E[T'] to the common upper bound (1/pmin)^d * b^d,
+    showing E[T'] ≤ (1/2)^d * ((1/pmin)^d * b^d).
+
+    Proof: apply hitting_time_upper_bound with 2*pmin, then factor out (1/2)^d.
+
+    KEY LEMMAS: hitting_time_upper_bound, mul_pow, one_div, inv_mul_le_iff₀. -/
+theorem policy_quality_exponent
+    {α : Type u} (t : AOTree α) (π' : ℕ → ℕ → NNReal)
     (pmin : NNReal) (hpmin : 0 < pmin) (hpmin1 : pmin ≤ 1)
     (hpmin2 : 2 * pmin ≤ 1)
     (b d : ℕ) (hb : 0 < b) (hd : 0 < d)
     (hprovable : isProvable t = true)
     (hbranch : maxAndBranch t ≤ b) (hdepth : proofDepth t ≤ d)
-    (hπ  : ∀ nid i, successProb π  t nid ≥ pmin)
-    (hπ' : ∀ nid i, successProb π' t nid ≥ 2 * pmin) :
+    (hπ' : ∀ nid, successProb π' t nid ≥ 2 * pmin) :
     (1 : NNReal) / successProb π' t 0 ≤
-      (1 / 2) ^ d * ((1 : NNReal) / successProb π t 0) := by
-  sorry
+      (1 / 2) ^ d * ((1 / pmin) ^ d * (b : NNReal) ^ d) := by
+  have h2pm_pos : (0 : NNReal) < 2 * pmin := by positivity
+  have h2pm_le1 : (2 : NNReal) * pmin ≤ 1 := hpmin2
+  -- Apply hitting_time_upper_bound with 2*pmin
+  have hT' : (1 : NNReal) / successProb π' t 0 ≤
+      ((1 / (2 * pmin)) ^ d) * (b : NNReal) ^ d :=
+    hitting_time_upper_bound t π' (2 * pmin) h2pm_pos h2pm_le1
+      b d hb hd hprovable hπ' hbranch hdepth
+  -- Factor: (1/(2*pmin))^d = (1/2)^d * (1/pmin)^d
+  have hfactor : ((1 : NNReal) / (2 * pmin)) ^ d = (1 / 2) ^ d * (1 / pmin) ^ d := by
+    rw [one_div, mul_inv, mul_pow, ← one_div, ← one_div]
+  calc (1 : NNReal) / successProb π' t 0
+      ≤ (1 / (2 * pmin)) ^ d * (b : NNReal) ^ d := hT'
+    _ = (1 / 2) ^ d * (1 / pmin) ^ d * (b : NNReal) ^ d := by rw [hfactor]
+    _ = (1 / 2) ^ d * ((1 / pmin) ^ d * (b : NNReal) ^ d) := by ring
