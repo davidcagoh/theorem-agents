@@ -24,6 +24,8 @@ structure PolicyDominates
     (correctChild : ℕ → ℕ → Prop) : Prop where
   /-- π' puts ≥ as much weight on correct children -/
   correct_ge : ∀ nid idx, correctChild nid idx → π nid idx ≤ π' nid idx
+  /-- π' puts ≤ as much weight on incorrect children -/
+  incorrect_le : ∀ nid idx, ¬ correctChild nid idx → π' nid idx ≤ π nid idx
   /-- Both policies are well-formed (weights sum to 1 at each OR node) -/
   wf  : ∀ nid n, ∑ i : Fin n, π  nid i = 1
   wf' : ∀ nid n, ∑ i : Fin n, π' nid i = 1
@@ -31,9 +33,9 @@ structure PolicyDominates
 /-! ## Key lemma -/
 
 /-- **Lemma 2.1 (successProb monotone in policy).**
-    If π' dominates π on correct children, and at each OR node the correct
-    children have higher sp(π') than incorrect ones (a pure ordering condition
-    on the tree structure, not on the policy), then
+    If π' dominates π on correct children (and puts less weight on incorrect ones),
+    and at each OR node the correct children have higher sp(π') than incorrect ones
+    (a pure ordering condition on the tree structure, not on the policy), then
     `successProb π t nid ≤ successProb π' t nid` for all nid.
 
     Proof by well-founded recursion on sizeOf t.
@@ -44,8 +46,6 @@ structure PolicyDominates
       - Value-improvement: ∑ π(i) * sp(π,i) ≤ ∑ π(i) * sp(π',i)  (by IH)
       - Weight-shift: ∑ π(i) * sp(π',i) ≤ ∑ π'(i) * sp(π',i)
           by NNReal.weighted_sum_mono with good = {i : correctChild nid i}
-          The `hbetter` condition is exactly `hcorrect_better` applied to the
-          child subtrees.
 
     AND node: ∏ sp(π,i) ≤ ∏ sp(π',i) by Finset.prod_le_prod + IH. -/
 lemma successProb_mono
@@ -53,11 +53,13 @@ lemma successProb_mono
     (π π' : ℕ → ℕ → NNReal)
     (correctChild : ℕ → ℕ → Prop)
     (hdom : PolicyDominates π π' correctChild)
-    -- hcorrect_better: at any node nid, correct child idx has higher sp(π') than bad child idx'
-    -- This is stated for the specific subtree t, so it can be passed down recursively.
-    (hcorrect_better : ∀ (t' : AOTree α) (nid idx idx' : ℕ),
-        correctChild nid idx → ¬ correctChild nid idx' →
-        successProb π' t' (nid + idx' + 1) ≤ successProb π' t' (nid + idx + 1))
+    -- hcorrect_better: at any OR node, correct children have higher sp(π') than incorrect ones.
+    -- This compares different subtrees of the same children list.
+    (hcorrect_better : ∀ (cs : List (AOTree α)) (nid : ℕ)
+        (i : Fin cs.length) (j : Fin cs.length),
+        ¬ correctChild nid i.val → correctChild nid j.val →
+        successProb π' (cs.get i) (nid + i.val + 1) ≤
+        successProb π' (cs.get j) (nid + j.val + 1))
     (nid : ℕ) :
     successProb π t nid ≤ successProb π' t nid := by
   match t with
@@ -83,8 +85,6 @@ lemma successProb_mono
         let w' : Fin cs.length → NNReal := fun i => π' nid i.val
         let f  : Fin cs.length → NNReal := fun i =>
           successProb π' (cs.get i) (nid + i.val + 1)
-        -- good = correct children at this node
-        -- Use Classical.propDecidable to make the filter decidable
         haveI : DecidablePred (fun i : Fin cs.length => correctChild nid i.val) :=
           fun i => Classical.propDecidable _
         let good : Finset (Fin cs.length) :=
@@ -95,18 +95,14 @@ lemma successProb_mono
           intro i hi
           simp only [good, Finset.mem_filter, Finset.mem_univ, true_and] at hi
           exact hdom.correct_ge nid i.val hi
+        · -- hshift_bad: ∀ i ∉ good, w' i ≤ w i
+          intro i hi
+          simp only [good, Finset.mem_filter, Finset.mem_univ, true_and] at hi
+          exact hdom.incorrect_le nid i.val hi
         · -- hbetter: ∀ i ∉ good, ∀ j ∈ good, f i ≤ f j
           intro i hi j hj
           simp only [good, Finset.mem_filter, Finset.mem_univ, true_and] at hi hj
-          -- hi : ¬ correctChild nid i.val
-          -- hj : correctChild nid j.val
-          -- f i = sp(π', cs.get i, nid+i+1)
-          -- f j = sp(π', cs.get j, nid+j+1)
-          -- hcorrect_better (cs.get i) nid j.val i.val hj hi gives:
-          --   sp(π', cs.get i, nid+i+1) ≤ sp(π', cs.get i, nid+j+1)
-          -- But we need sp(π', cs.get i, ...) ≤ sp(π', cs.get j, ...)
-          -- These are different subtrees — this is the fundamental sorry
-          sorry
+          exact hcorrect_better cs nid i j hi hj
       exact hval.trans hshift
   | AOTree.andNode s cs =>
       simp only [successProb]
@@ -129,9 +125,11 @@ theorem policy_improvement_reduces_hitting_time
     (π π' : ℕ → ℕ → NNReal)
     (correctChild : ℕ → ℕ → Prop)
     (hdom : PolicyDominates π π' correctChild)
-    (hcorrect_better : ∀ (t' : AOTree α) (nid idx idx' : ℕ),
-        correctChild nid idx → ¬ correctChild nid idx' →
-        successProb π' t' (nid + idx' + 1) ≤ successProb π' t' (nid + idx + 1))
+    (hcorrect_better : ∀ (cs : List (AOTree α)) (nid : ℕ)
+        (i : Fin cs.length) (j : Fin cs.length),
+        ¬ correctChild nid i.val → correctChild nid j.val →
+        successProb π' (cs.get i) (nid + i.val + 1) ≤
+        successProb π' (cs.get j) (nid + j.val + 1))
     (hpos : 0 < successProb π t 0) :
     (1 : NNReal) / successProb π' t 0 ≤ (1 : NNReal) / successProb π t 0 := by
   have hmono := successProb_mono t π π' correctChild hdom hcorrect_better 0
@@ -144,10 +142,11 @@ theorem expert_iteration_soundness
     (πs : ℕ → ℕ → ℕ → NNReal)
     (correctChild : ℕ → ℕ → Prop)
     (hiter : ∀ k, PolicyDominates (πs k) (πs (k + 1)) correctChild)
-    (hcorrect : ∀ k (t' : AOTree α) nid idx idx',
-        correctChild nid idx → ¬ correctChild nid idx' →
-        successProb (πs (k + 1)) t' (nid + idx' + 1) ≤
-        successProb (πs (k + 1)) t' (nid + idx + 1))
+    (hcorrect : ∀ k (cs : List (AOTree α)) (nid : ℕ)
+        (i : Fin cs.length) (j : Fin cs.length),
+        ¬ correctChild nid i.val → correctChild nid j.val →
+        successProb (πs (k + 1)) (cs.get i) (nid + i.val + 1) ≤
+        successProb (πs (k + 1)) (cs.get j) (nid + j.val + 1))
     (hpos : ∀ k, 0 < successProb (πs k) t 0) :
     ∀ k, (1 : NNReal) / successProb (πs (k + 1)) t 0 ≤
          (1 : NNReal) / successProb (πs k)       t 0 := fun k =>
