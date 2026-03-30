@@ -6,24 +6,15 @@ The parent `../CLAUDE.md` covers shared workflow, Lean conventions, Mathlib API 
 
 ## High-Level Architecture
 
-This repository contains multiple Lean 4 formalization tracks, primarily focused on automated theorem proving using Aristotle.
+This repository is dedicated to formalizing theorems about stochastic proof search on AND-OR hypertrees in Lean 4, primarily focused on automated theorem proving using Aristotle.
 
-### 1. AND-OR Hypertree Hitting-Time Theorems (In Progress)
-Formalizes four theorems about stochastic proof search on AND-OR hypertrees. The recommended implementation order is Theorem 3 → 1 → 4 → 2.
+### AND-OR Hypertree Hitting-Time Theorems (In Progress)
+Formalizes four theorems characterizing the expected hitting time of a policy-guided random traversal. The recommended implementation order is Theorem 3 → 1 → 4 → 2.
 *   **`AOTree/Defs.lean`**: The core shared infrastructure. Defines the `AOTree` inductive type, `successProb` (using `NNReal`), and OR-node policies. Contains crucial cross-theorem helper lemmas (`sum_prod_erase_le_one`, `NNReal.weighted_sum_mono`) that must be completed to support downstream theorems.
 *   **`AOTree/Theorem3.lean`**: The simplest theorem and recommended starting point. Establishes that AND-branching imposes policy-independent hardness.
 *   **`AOTree/Theorem1.lean`**: Proves the hitting time upper bound.
 *   **`AOTree/Theorem4.lean`**: An algebraic branch comparing sequential vs. parallel search. Mostly self-contained combinatorial proofs.
 *   **`AOTree/Theorem2.lean`**: The most advanced theorem. Formalizes monotone policy improvement and expert iteration soundness. Heavily relies on the helper lemmas from `Defs.lean`.
-
-### 2. JEPA Learning Dynamics Proof (Complete)
-Proves that a depth-L ≥ 2 linear JEPA model learns features in decreasing order of their generalized regression coefficient.
-*   **`JEPA.lean`**: The main proof file.
-*   **`Lemmas.lean`**: Substantial classical helper results not in Mathlib (e.g., positive-definite quadratic/Frobenius lower bounds).
-*   **`OffDiagHelpers.lean`**: Bridging lemmas that adapt general results from `Lemmas.lean` into the exact inequalities needed by `JEPA.lean`.
-
-### 3. Standalone Classical Analysis
-*   **`GronwallIntegral.lean`**: A self-contained formalization of the variable-coefficient integral form of Grönwall's inequality, using an integrating-factor argument.
 
 **Entry Point**: `AutomatedProofs.lean` imports all files in strict dependency order. When adding a new theorem file, insert its import here **after** any files it depends on.
 
