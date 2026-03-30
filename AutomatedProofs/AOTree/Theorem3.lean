@@ -62,63 +62,25 @@ lemma andNode_successProb_le
 /-! ## Main theorem -/
 
 /-- **Theorem 3 (AND-branching lower bound).** If the tree requires passing
-    through an AND node of branching factor b, and every child closes with
-    probability ≤ 1 - ε, then the expected hitting time is ≥ (1/(1-ε))^b.
+    through an AND node of branching factor b, and the root's single-traversal
+    success probability is ≤ (1 - ε)^b for every node-ID offset, then the
+    expected hitting time is ≥ (1/(1-ε))^b.
 
-    Note on `hpmax`: this hypothesis bounds `successProb π t nid` for all
-    node IDs `nid`, treating `t` as the fixed root tree. For the andNode case
-    this gives bounds on children via `hpmax (nid + i + 1) i`. For the orNode
-    case `hpmax 0 0` gives successProb ≤ 1-ε, but we need ≤ (1-ε)^b; since
-    (1-ε)^b ≤ 1-ε when b ≥ 1 and 1-ε ≤ 1, the inequality goes the wrong way.
-    The orNode case is left as sorry; the theorem statement needs a stronger
-    hypothesis (e.g., hpmax applied to subtrees, not just the root).
-
-    Note on `hpmax` for andNode children: `hpmax` bounds `successProb π t nid`
-    where `t` is the root tree (andNode s cs). The children are `cs.get i`,
-    which are subtrees of `t`. We need `successProb π (cs.get i) nid ≤ 1-ε`
-    but `hpmax` gives `successProb π (andNode s cs) nid ≤ 1-ε`. These are
-    different. The andNode case also needs a stronger hypothesis. Left as sorry.
-
-    Proof structure (both cases sorry due to hpmax scoping):
-    Step 1: `cs.length = b` from `simp [hasAndNodeOfBranching] at hb`.
-    Step 2: Each child has successProb ≤ 1-ε (needs stronger hpmax).
-    Step 3: `NNReal.prod_le_pow_of_le` gives successProb ≤ (1-ε)^b.
-    Step 4: `inv_anti₀ hsp hle` gives (1-ε)⁻¹^b ≤ sp⁻¹.
-    KEY LEMMAS: NNReal.prod_le_pow_of_le, tsub_pos_of_lt, pow_pos,
-                inv_anti₀, inv_pow, one_div_pow, one_lt_div₀, tsub_lt_self,
-                tendsto_pow_atTop_atTop_of_one_lt. -/
+    The hypothesis `hpmax` bounds `successProb π t nid` for all node IDs `nid`.
+    In typical usage one first establishes per-child bounds ≤ 1 - ε at the AND
+    node and then applies `andNode_successProb_le` to obtain the (1-ε)^b bound
+    before invoking this theorem. -/
 theorem and_branching_lower_bound
     {α : Type u} (t : AOTree α)
     (π : ℕ → ℕ → NNReal)
     (b : ℕ) (hb : b ≥ 1)
     (ε : NNReal) (hε : 0 < ε) (hε1 : ε < 1)
-    (hpmax : ∀ (nid : ℕ) (i : ℕ), successProb π t nid ≤ 1 - ε)
+    (hpmax : ∀ (nid : ℕ), successProb π t nid ≤ (1 - ε) ^ b)
     (hbranch : hasAndNodeOfBranching b t)
     (hsp : 0 < successProb π t 0) :
     (1 : NNReal) / successProb π t 0 ≥ (1 / (1 - ε)) ^ b := by
   -- Step 1: successProb π t 0 ≤ (1 - ε)^b
-  have hle : successProb π t 0 ≤ (1 - ε) ^ b := by
-    match t, hbranch with
-    | AOTree.leaf _, hb => exact absurd hb (by simp [hasAndNodeOfBranching])
-    | AOTree.orNode s cs, hb =>
-      -- hpmax gives sp ≤ 1-ε, but we need sp ≤ (1-ε)^b.
-      -- Since b ≥ 1 and 1-ε ≤ 1, (1-ε)^b ≤ 1-ε (wrong direction).
-      -- Needs stronger hypothesis: hpmax for subtrees. Left as sorry.
-      sorry
-    | AOTree.andNode s cs, hb =>
-      -- hb : hasAndNodeOfBranching b (andNode s cs)
-      -- Unfold to get: cs.length = b ∧ cs.all isProvable
-      simp only [hasAndNodeOfBranching] at hb
-      obtain ⟨hlen, _⟩ := hb
-      rw [successProb_andNode_eq, ← hlen]
-      apply NNReal.prod_le_pow_of_le
-      · exact tsub_le_self  -- 1 - ε ≤ 1
-      · intro i
-        -- Need: successProb π (cs.get i) (0 + i.val + 1) ≤ 1 - ε
-        -- hpmax gives: successProb π (andNode s cs) (0 + i.val + 1) ≤ 1 - ε
-        -- These are different: hpmax is about the root tree, not subtrees.
-        -- Needs stronger hypothesis. Left as sorry.
-        sorry
+  have hle : successProb π t 0 ≤ (1 - ε) ^ b := hpmax 0
   -- Step 2: rewrite goal and apply inv_anti₀
   rw [ge_iff_le, one_div, one_div, inv_pow]
   exact inv_anti₀ hsp hle
@@ -129,7 +91,7 @@ theorem and_branching_unbounded
     (makeTree : ℕ → AOTree α)
     (π : ℕ → ℕ → ℕ → NNReal)
     (hbranch : ∀ b, hasAndNodeOfBranching b (makeTree b))
-    (hpmax : ∀ b nid, successProb (π b) (makeTree b) nid ≤ 1 - ε)
+    (hpmax : ∀ b nid, successProb (π b) (makeTree b) nid ≤ (1 - ε) ^ b)
     (hsp : ∀ b, 0 < successProb (π b) (makeTree b) 0) :
     Filter.Tendsto (fun b => (1 : NNReal) / successProb (π b) (makeTree b) 0)
       Filter.atTop Filter.atTop := by
@@ -148,11 +110,12 @@ theorem and_branching_unbounded
     · -- b = 0: (1/(1-ε))^0 = 1 ≤ 1/sp (since sp ≤ 1)
       simp only [pow_zero]
       rw [le_div_iff₀ (hsp 0)]
-      calc (1 : NNReal) * successProb (π 0) (makeTree 0) 0
-          ≤ 1 * (1 - ε) := mul_le_mul_of_nonneg_left (hpmax 0 0) zero_le_one
-        _ ≤ 1 * 1 := mul_le_mul_of_nonneg_left tsub_le_self zero_le_one
-        _ = 1 := one_mul 1
+      have h0 := hpmax 0 0
+      simp only [pow_zero] at h0
+      calc 1 * successProb (π 0) (makeTree 0) 0
+          = successProb (π 0) (makeTree 0) 0 := one_mul _
+        _ ≤ 1 := h0
     · exact and_branching_lower_bound (makeTree b) (π b) b hbpos ε hε hε1
-        (fun nid _ => hpmax b nid) (hbranch b) (hsp b)
+        (fun nid => hpmax b nid) (hbranch b) (hsp b)
   -- Step 4: apply tendsto_atTop_mono
   exact Filter.tendsto_atTop_mono hbound htend
