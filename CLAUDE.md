@@ -1,59 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the `theorem-agents` repository.
+This file provides repository-local guidance for agentic work in **theorem-agents**.
 
-The parent `../CLAUDE.md` covers shared workflow, Lean conventions, Mathlib API patterns, and Aristotle submission guidelines. This file covers project-specific details.
+## Repository role
 
-## High-Level Architecture
+This repository is the **agentic theorem-proving layer** of the Lean portfolio. It formalizes four theorems characterizing the expected hitting time of policy-guided random traversal on AND-OR hypertrees — the theoretical foundation for neural theorem-proving complexity.
 
-This repository is dedicated to formalizing theorems about stochastic proof search on AND-OR hypertrees in Lean 4, primarily focused on automated theorem proving using Aristotle.
+## Local authority rule
 
-### AND-OR Hypertree Hitting-Time Theorems (In Progress)
-Formalizes four theorems characterizing the expected hitting time of a policy-guided random traversal. The recommended implementation order is Theorem 3 → 1 → 4 → 2.
-*   **`AOTree/Defs.lean`**: The core shared infrastructure. Defines the `AOTree` inductive type, `successProb` (using `NNReal`), and OR-node policies. Contains crucial cross-theorem helper lemmas (`sum_prod_erase_le_one`, `NNReal.weighted_sum_mono`) that must be completed to support downstream theorems.
-*   **`AOTree/Theorem3.lean`**: The simplest theorem and recommended starting point. Establishes that AND-branching imposes policy-independent hardness.
-*   **`AOTree/Theorem1.lean`**: Proves the hitting time upper bound.
-*   **`AOTree/Theorem4.lean`**: An algebraic branch comparing sequential vs. parallel search. Mostly self-contained combinatorial proofs.
-*   **`AOTree/Theorem2.lean`**: The most advanced theorem. Formalizes monotone policy improvement and expert iteration soundness. Heavily relies on the helper lemmas from `Defs.lean`.
+If shared handbook context is unavailable, treat this file and `README.md` as the authoritative operating guide for this repository.
 
-**Entry Point**: `AutomatedProofs.lean` imports all files in strict dependency order. When adding a new theorem file, insert its import here **after** any files it depends on.
+## Shared ecosystem
 
-## Development Workflow & Commands
+This project is part of the **Stochastic Proofs Handbook** ecosystem. Use the handbook for shared Lean patterns and Aristotle workflow conventions, but use this file for repository-specific structure and cautions.
 
-The general workflow is: write a proof paper (markdown) → translate it into a Lean skeleton with `sorry` placeholders and `PROVIDED SOLUTION` docstrings → submit to Aristotle → retrieve filled proofs.
+## Repository map
 
-### Building and Testing
-*   **Build entire project**: `lake build`
-*   **Build/test a single file**: `lake build AutomatedProofs.AOTree.Theorem3` (This elaborates only the specified module and its dependencies, effectively running the "tests" for that file).
+| Path | Role |
+|---|---|
+| `AutomatedProofs/AOTree/Defs.lean` | Core definitions and helper lemmas |
+| `AutomatedProofs/AOTree/Theorem3.lean` | Zero-sum exploration theorem and policy-independent hardness |
+| `AutomatedProofs/AOTree/Theorem1.lean` | Hitting time upper bound |
+| `AutomatedProofs/AOTree/Theorem4.lean` | Sequential versus parallel search branch |
+| `AutomatedProofs/AOTree/Theorem2.lean` | Monotone policy improvement and expert iteration soundness |
+| `AutomatedProofs.lean` | Import entry point in dependency order |
 
-### Aristotle Submission Loop
-Scripts are located in `scripts/` and should be run from the project root.
-*   **Check progress**: `python scripts/status.py`
-    *   Scans Lean files for remaining `sorry`s (ignoring comments/docstrings) and shows in-flight Aristotle jobs.
-*   **Submit to Aristotle**: `python scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries"`
-    *   Use `--dry-run` to preview the packaged files.
-    *   The paper path is required to link the submission to its source.
-*   **Watch jobs**: `python scripts/watch.py`
-    *   Adaptively polls in-flight jobs and **auto-runs retrieval** when jobs complete.
-*   **Retrieve manually**: `python scripts/retrieve.py`
-    *   Downloads completed jobs and annotates the corresponding markdown papers in `reports/`.
+## Commands
 
-### Scaffolding New Theorems
-Use the custom Claude skill to scaffold a Lean skeleton from a markdown paper:
 ```bash
-/new-theorem my_theorems/Paper.md
+lake build
+lake build AutomatedProofs.AOTree.Theorem3
+python scripts/status.py
+python scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries" --dry-run
+python scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries"
+python scripts/watch.py
+python scripts/retrieve.py
 ```
-This skill reads `lakefile.toml` for the module name, infers the theorem name, identifies lemmas, writes skeleton files with `PROVIDED SOLUTION` docstrings, updates `AutomatedProofs.lean`, and runs a dry-run before offering to submit.
 
-## Lean 4 Proof Patterns (Confirmed Working in v4.28.0)
+## Project-specific cautions
 
-### Termination for Recursive Functions on Nested Inductives
+| Area | Guidance |
+|---|---|
+| Import order | Update `AutomatedProofs.lean` carefully and preserve dependency order. |
+| Local theorem scope | Keep proofs aligned with the current AND/OR tree formalization rather than generalizing prematurely. |
+| Subtree reasoning | Be careful when a hypothesis about the root tree is incorrectly reused for subtrees. |
+| Result merging | Aristotle jobs are snapshots; merge only proved changes rather than overwriting local files wholesale. |
 
-When recursing over a `List` of children (e.g., `AOTree`), Lean cannot automatically prove termination. Use explicit membership binders so the proof is available to `omega`:
+## Submission policy
+
+Prefer focused submissions for logically coherent theorem clusters. If one theorem depends on helper lemmas or local structural fixes, prove those first and keep the dependency chain explicit.
+
+---
+
+## Lean 4 Proof Patterns (confirmed for this project)
+
+### Termination for recursive functions on `AOTree`
+
+When recursing over a `List` of children, Lean cannot automatically prove termination. Use explicit membership binders:
 
 ```lean
--- Use explicit membership: ∃ (c : AOTree α) (hc : c ∈ cs), ...
--- NOT implicit:           ∃ c ∈ cs, ...
 def myFn : AOTree α → ...
   | orNode _ cs => ∃ (c : AOTree α) (_ : c ∈ cs), myFn c
 termination_by t => sizeOf t
@@ -64,7 +69,7 @@ decreasing_by
   omega
 ```
 
-For index-based recursion (`cs.get i` or `cs[i]`), use `List.getElem_mem` to produce the membership proof:
+For index-based recursion (`cs.get i`), use `List.getElem_mem` to produce the membership proof:
 
 ```lean
 termination_by t => sizeOf t
@@ -74,7 +79,7 @@ decreasing_by
   omega
 ```
 
-### Key Mathlib Lemma Names
+### Key Mathlib lemma names
 
 | Goal | Lemma |
 |------|-------|
@@ -89,13 +94,9 @@ decreasing_by
 | `g → ∞` from `f ≤ g` and `f → ∞` | `Filter.tendsto_atTop_mono` (fully qualified) |
 | `0 ≤ 1` in `mul_le_mul_of_nonneg_left` | use `zero_le_one`, not `le_rfl` |
 
-### Common Pitfalls
+### Common pitfalls
 
 - **`corollary` keyword**: Does not exist in Lean 4. Use `theorem` instead.
-- **`Filter.tendsto_atTop_mono`**: Use the fully qualified name. `Filter.Tendsto.atTop_mono` does not exist. Also avoid `apply ... ?_` patterns — use `exact Filter.tendsto_atTop_mono (fun n => ...) htend` directly.
+- **`Filter.tendsto_atTop_mono`**: Use the fully qualified name. `Filter.Tendsto.atTop_mono` does not exist. Use `exact Filter.tendsto_atTop_mono (fun n => ...) htend` directly — avoid `apply ... ?_` patterns.
 - **Doc comment syntax errors**: If a syntax error points to the end of a `/-- ... -/` doc comment, the parser is misreading its content. Simplify the comment or use `--` line comments.
 - **`hpmax` scoping**: When a hypothesis bounds `successProb π t nid` for the root tree `t`, it does not automatically bound subtrees. For the `andNode` case, children `cs.get i` are different trees. Either add a separate `hchildren` hypothesis or strengthen `hpmax` to quantify over all subtrees.
-
-## Environment Notes
-*   **Mathlib Cache**: The repository is designed to be cloned inside a dedicated parent folder (e.g., `~/lean-projects/`) so that the ~7.7 GB Mathlib cache in `.lean-packages/` can be shared across multiple projects.
-*   **Toolchain**: Pinned to `leanprover/lean4:v4.28.0` and Mathlib `v4.28.0` to match Aristotle's fixed environment.
