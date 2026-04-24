@@ -10,3 +10,6 @@ results/
 my_theorems/
 reports/
 help_from_aristotle/
+
+aristotle/
+*.log
