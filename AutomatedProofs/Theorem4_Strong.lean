@@ -1,6 +1,6 @@
 import Mathlib
-import AutomatedProofs.AOTree.Defs
-import AutomatedProofs.AOTree.Theorem4
+import AutomatedProofs.Defs
+import AutomatedProofs.Theorem4
 
 set_option linter.style.longLine false
 set_option linter.style.whitespace false

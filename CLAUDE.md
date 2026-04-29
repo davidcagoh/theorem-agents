@@ -18,18 +18,18 @@ This project is part of the **Stochastic Proofs Handbook** ecosystem. Use the ha
 
 | Path | Role |
 |---|---|
-| `AutomatedProofs/AOTree/Defs.lean` | Core definitions and helper lemmas |
-| `AutomatedProofs/AOTree/Theorem3.lean` | Zero-sum exploration theorem and policy-independent hardness |
-| `AutomatedProofs/AOTree/Theorem1.lean` | Hitting time upper bound |
-| `AutomatedProofs/AOTree/Theorem4.lean` | Sequential versus parallel search branch |
-| `AutomatedProofs/AOTree/Theorem2.lean` | Monotone policy improvement and expert iteration soundness |
+| `AutomatedProofs/Defs.lean` | Core definitions and helper lemmas |
+| `AutomatedProofs/Theorem3.lean` | Zero-sum exploration theorem and policy-independent hardness |
+| `AutomatedProofs/Theorem1.lean` | Hitting time upper bound |
+| `AutomatedProofs/Theorem4.lean` | Sequential versus parallel search branch |
+| `AutomatedProofs/Theorem2.lean` | Monotone policy improvement and expert iteration soundness |
 | `AutomatedProofs.lean` | Import entry point in dependency order |
 
 ## Commands
 
 ```bash
 lake build
-lake build AutomatedProofs.AOTree.Theorem3
+lake build AutomatedProofs.Theorem3
 python ../stochastic-proofs-handbook/scripts/status.py
 python ../stochastic-proofs-handbook/scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries" --dry-run
 python ../stochastic-proofs-handbook/scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries"

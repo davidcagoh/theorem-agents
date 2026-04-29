@@ -1,5 +1,5 @@
 import Mathlib
-import AutomatedProofs.AOTree.Defs
+import AutomatedProofs.Defs
 
 set_option linter.style.longLine false
 set_option linter.style.whitespace false
