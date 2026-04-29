@@ -30,11 +30,12 @@ This project is part of the **Stochastic Proofs Handbook** ecosystem. Use the ha
 ```bash
 lake build
 lake build AutomatedProofs.AOTree.Theorem3
-python scripts/status.py
-python scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries" --dry-run
-python scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries"
-python scripts/watch.py
-python scripts/retrieve.py
+python ../stochastic-proofs-handbook/scripts/status.py
+python ../stochastic-proofs-handbook/scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries" --dry-run
+python ../stochastic-proofs-handbook/scripts/submit.py my_theorems/lean4_andor_theorems_agent_spec.md "Fill in all the sorries"
+python ../stochastic-proofs-handbook/scripts/watch.py
+python ../stochastic-proofs-handbook/scripts/retrieve.py
+python ../stochastic-proofs-handbook/scripts/retrieve.py <project-id>
 ```
 
 ## Project-specific cautions
