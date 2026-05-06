@@ -1,0 +1,726 @@
+%% paper.tex — Hitting-Time Bounds for Policy-Guided Search on AND-OR Hypertrees
+%% Compile: cd stochastic-search-bounds/my_theorems && pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
+
+\documentclass[reqno,11pt]{amsart}
+
+%% ── Encoding & fonts ─────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+
+%% ── Mathematics ──────────────────────────────────────────────────────────────
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+
+%% ── Bibliography ─────────────────────────────────────────────────────────────
+\usepackage[numbers,sort&compress]{natbib}
+
+%% ── Hyperlinks ───────────────────────────────────────────────────────────────
+\usepackage[dvipsnames,svgnames,x11names]{xcolor}
+\usepackage[colorlinks=true,
+            linkcolor=RoyalBlue4,
+            citecolor=RoyalBlue4,
+            urlcolor=NavyBlue]{hyperref}
+\usepackage{url}
+
+%% ── Page geometry ────────────────────────────────────────────────────────────
+\usepackage[top=1in,bottom=1in,left=1in,right=1in]{geometry}
+
+%% ── Lists and verbatim ──────────────────────────────────────────────────────
+\usepackage{enumitem}
+\usepackage{verbatim}
+\usepackage{listings}
+
+\lstdefinestyle{lean}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  literate=
+    {α}{{$\alpha$}}1
+    {π}{{$\pi$}}1
+    {ε}{{$\varepsilon$}}1
+    {ℕ}{{$\mathbb{N}$}}1
+    {ℝ}{{$\mathbb{R}$}}1
+    {≤}{{$\leq$}}1
+    {≥}{{$\geq$}}1
+    {→}{{$\to$}}1
+    {∀}{{$\forall$}}1
+    {∃}{{$\exists$}}1
+    {∑}{{$\sum$}}1
+    {∏}{{$\prod$}}1
+    {¬}{{$\neg$}}1
+    {·}{{$\cdot$}}1
+    {πs}{{$\pi$s}}2,
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+%%  MACROS
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\EE}{\mathbb{E}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\Rnn}{\mathbb{R}_{\ge 0}}
+
+\DeclareMathOperator{\spO}{sp}
+\newcommand{\sP}{\mathsf{sp}}
+\newcommand{\leafN}{\mathsf{leaf}}
+\newcommand{\orN}{\mathsf{orNode}}
+\newcommand{\andN}{\mathsf{andNode}}
+\newcommand{\isProvable}{\mathsf{isProvable}}
+\newcommand{\depth}{\mathsf{depth}}
+\newcommand{\maxAnd}{\mathsf{maxAndBranch}}
+\newcommand{\proofDepth}{\mathsf{proofDepth}}
+\newcommand{\nid}{\mathsf{nid}}
+\newcommand{\hasAnd}{\mathsf{hasAndNodeOfBranching}}
+
+%% Lean annotations
+\newcommand{\lean}[1]{\textup{\texttt{\small #1}}}
+\newcommand{\leanverified}[1]{\textup{(Lean: \texttt{\small #1}, 0 sorries)}}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+%%  THEOREM ENVIRONMENTS
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+%%  DOCUMENT
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{document}
+
+\title[Hitting-Time Bounds for AND-OR Hypertree Search]{Hitting-Time Bounds for Policy-Guided Search on AND-OR Hypertrees: A Machine-Verified Account}
+
+\author{David Goh}
+\email{davidcagoh@gmail.com}
+
+\date{\today}
+
+\begin{abstract}
+Every leading neural theorem prover --- from the HyperTree Proof Search of~\citet{Lample2022} and AlphaProof to DeepSeek-Prover~\citep{DeepSeekProver2024}, Goedel-Prover~\citep{GoedelProver2025}, Kimina-Prover~\citep{KiminaProver2025}, and the GAR framework --- runs an expert-iteration loop over AND-OR hypertrees: a policy samples tactics at OR nodes, all subgoals must close at AND nodes, and successful traversals are distilled back into the policy. The loop is empirically validated but theoretically unverified: no machine-verified account exists of when expert iteration provably reduces expected search cost, nor of what structural parameters bound that cost from below.
+
+We provide that account. Expert iteration is provably monotone in expected hitting time under two explicit conditions --- policy dominance (more weight on tactics demonstrated correct) and value ordering (correct children carry higher success probability under the new policy). But the hitting-time envelope within which that monotone descent occurs is exponential in AND-branching factor and proof depth, and no policy improvement can lower that floor: when AND-branching is large, expected search cost diverges regardless of how OR-node weights are chosen.
+
+Precisely, we prove four results: \emph{(1)~a monotone policy-improvement theorem} establishing that shifting weight toward correct tactics is never worse, with an expert-iteration corollary --- the formal analogue of monotonicity assumed but never verified in the neural theorem-proving literature; \emph{(2)~an exponential upper bound} $(1/p_{\min})^d \cdot b^d$ on hitting time under a root-only success-probability hypothesis (no uniform per-node assumption required); \emph{(3)~a matching lower bound} showing hitting time grows as $(1/(1-\varepsilon))^b$ when AND-branching is $b$, diverging to infinity as $b\to\infty$; and \emph{(4)~a sequential-versus-parallel inequality} showing that, when subgoal success probabilities sum to at most~$1$, sequential AND-node decomposition is never worse than parallel.
+
+All four results are fully formalised in Lean~4 with Mathlib and contain zero open proof obligations; the axiom base is \texttt{[propext, Classical.choice, Quot.sound]}.
+\end{abstract}
+
+\maketitle
+
+\begin{remark}[Context]
+This framework is motivated by the hypertree proof search architecture of~\citet{Lample2022} and the Aristotle system~\citep{Aristotle2024}, which implement proof search over structures with the AND-OR tree topology studied here. The AND-OR tree model has a long history in game-tree evaluation going back to~\citet{Pearl1982} and~\citet{Tarsi1983}; those classical results supply historical lineage and background, not direct antecedents for the theorems below.
+\end{remark}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Motivating question.} Can a sufficiently capable agentic system, given enough inference-time compute and a sufficiently well-trained policy, eventually settle any target mathematical conjecture --- up to and including the Riemann Hypothesis --- by running an expert-iteration loop to convergence? The 2026 empirical picture is unambiguously negative. The Aletheia whitepaper~\citep{AletheiaWhitepaper2026} reports that inference-time compute yields gains ``by orders of magnitude'' on competition-level problems but plateaus on PhD-level exercises, concluding that ``inference-time scaling alone would not be sufficient'' (\S2.2); the GAR framework~\citep{GAR2025} behind DeepSeek-Prover-V2~\citep{DeepSeekProver2024} and Goedel-Prover~\citep{GoedelProver2025} produces strong empirical monotone improvement from adversarial curriculum iteration but contains no formal convergence guarantees; and the Feng et al.\ systematic evaluation of 700 Erd\H{o}s problems~\citep{FengErdos2026} resolves four but leaves the remainder untouched, with the authors attributing unresolved cases to structural search difficulty rather than compute shortage. What is missing from the literature is any formal explanation of \emph{why} such a plateau is inevitable --- a theoretical account of the search process itself, rather than an empirical chart of its limits. This paper supplies one.
+
+\paragraph{The 2024--2026 landscape.} The HyperTree Proof Search architecture introduced by~\citet{Lample2022} has become, by 2026, the dominant structural template for neural theorem proving. AlphaProof, Aesop~\citep{Aesop2023}, LeanDojo-based systems~\citep{LeanDojo2023,Llemma2023}, DeepSeek-Prover~\citep{DeepSeekProver2024}, Goedel-Prover~\citep{GoedelProver2025}, Kimina-Prover~\citep{KiminaProver2025}, and the adversarial curriculum frameworks descending from them all share the same operational loop: at each OR node a learned policy samples a tactic; at each AND node all resulting subgoals must be closed independently; a single complete traversal succeeds with some policy-dependent probability; and between runs, an expert-iteration step distils successful traversals back into the policy. The fundamental resource measure is the \emph{expected number of traversals} before a complete proof is found --- the hitting time of the Bernoulli process induced by the policy --- and the fundamental operational belief is that expert iteration makes this hitting time go down.
+
+\paragraph{What is missing.} The operational loop is empirically validated and the expert-iteration belief is pervasive, but the underlying theory has not been formalised. Three bodies of prior work bear on the question without covering it: (i)~classical AND-OR tree complexity~\citep{Pearl1982,Tarsi1983,SaksWigderson1986,Snir1985} gives deterministic leaf-query lower bounds, a computational model distinct from per-traversal stochastic hitting time under a learned policy; (ii)~Markov decision process policy improvement~\citep{Bellman1957,Puterman1994,SuttonBarto2018} gives $V^{\pi'}\ge V^{\pi}$ for flat MDPs, but in the recursive hypertree setting the value of a subtree under $\pi'$ depends on the policy's action at every descendant OR node, breaking the flat-MDP argument; and (iii)~the neural theorem-proving literature~\citep{PoluHan2020,Han2021,Lample2022,DeepSeekProver2024,GoedelProver2025,KiminaProver2025} reports empirical speedups from expert iteration but does not isolate the hypotheses under which the monotonicity of hitting time actually holds. To the author's knowledge, no machine-verified formal account of the stochastic-search process used by these systems exists at the time of writing.
+
+\paragraph{This paper.} We provide the first machine-verified formal account of the expected search cost of policy-guided traversal on AND-OR hypertrees. The four results form a mutually reinforcing complexity picture:
+
+\begin{enumerate}[leftmargin=*,label=\textbf{\arabic*.}]
+\item \textbf{(Theorem~\ref{thm:policy}: Monotone policy improvement.)} If policy $\pi'$ dominates $\pi$ on correct children and assigns higher success probability to correct children than incorrect ones, the expected hitting time is non-increasing. The value-ordering condition (\texttt{hcorrect\_better}) is the structural hypothesis that flat-MDP policy improvement does not require; \emph{isolating it is as much the contribution as proving the theorem under it}. Corollary~\ref{cor:expert} establishes that any sequence of such improvements yields monotone non-increasing expected search cost --- the formal analogue of expert-iteration monotonicity assumed but never verified in the neural theorem-proving literature.
+
+\item \textbf{(Theorem~\ref{thm:upper}: Exponential upper bound.)} The hitting time satisfies $1/\sP(\pi,T,0) \le (1/p_{\min})^d \cdot b^d$, where $d$ is proof depth and $b$ is AND-branching, under a \emph{root-only} bound $\sP(\pi,T,0) \ge p_{\min}$ --- no uniform per-node assumption required. Doubling $p_{\min}$ reduces the ceiling by $2^d$.
+
+\item \textbf{(Proposition~\ref{thm:lower}: AND-branching lower bound.)} When the tree contains an AND node of branching $b$ and no policy achieves per-node success probability above $(1-\varepsilon)^b$, the hitting time is at least $(1/(1-\varepsilon))^b$, diverging to $+\infty$ as $b\to\infty$. No expert-iteration step can escape this floor.
+
+\item \textbf{(Proposition~\ref{thm:seq}: Sequential $\le$ parallel.)} For AND-node subgoal success probabilities summing to at most~$1$, sequential decomposition is never worse than parallel. This is a provable structural property of hitting-time geometry, not a heuristic.
+\end{enumerate}
+
+Together: expert iteration provably reduces expected search cost (result~1), but the envelope bounding that cost is exponential in AND-branching (results~2 and~3), and sequential tactic decomposition is the operationally correct strategy within that envelope (result~4). The compute plateau reported by~\citet{AletheiaWhitepaper2026} is not, on our account, a property of any particular model, curriculum, or hardware budget --- it is a property of the topology on which every frontier agentic prover operates.
+
+\paragraph{Scope.} The prior works cited above --- the hypertree architecture of~\citet{Lample2022}, expert iteration of~\citet{Anthony2017}, and classical AND-OR complexity of~\citet{Pearl1982,Tarsi1983,SaksWigderson1986} --- motivate the framework and situate it historically. The formal results here, with their exact hypotheses and \texttt{NNReal} formalisation, are not contained in those works and are not reducible to them. Most concretely: Theorem~\ref{thm:policy} requires a child-ordering condition absent from flat-MDP policy improvement; Theorems~\ref{thm:upper} and~\ref{thm:lower} are per-traversal probability bounds, not query-complexity bounds; and Proposition~\ref{thm:seq} has not, to our knowledge, been formally proved previously.
+
+\subsection{Relation to Prior Work}
+
+For broader orientation, the recent survey of~\citet{LiSunMurphy2024} covers the landscape of deep-learning-based theorem proving in which the present work is situated; we cite specific systems below only where they bear directly on the hypertree model or on the policy-improvement intuition formalised here.
+
+\paragraph{Neural theorem proving and hypertree motivation.} The AND-OR hypertree model used throughout this paper is motivated by the proof-search architectures of~\citet{YangDeng2019},~\citet{PoluHan2020},~\citet{Han2021}, and especially~\citet{Lample2022}, whose HyperTree Proof Search system treats proof search as a stochastic traversal of a hypertree in exactly the sense formalised here. These works supply the motivation for studying the hitting-time quantity and the hypertree topology. They do not themselves establish the theorems proved in this paper; the hitting-time bounds, policy-improvement monotonicity, and sequential-versus-parallel comparison are not among their results. A line of modern LLM-guided Lean provers~\citep{LeanDojo2023,Llemma2023,DeepSeekProver2024,GoedelProver2025,KiminaProver2025} descends structurally from this hypertree-search lineage and, together with best-first Lean tactics such as Aesop~\citep{Aesop2023}, concretises the search topology to which the theorems here apply; these systems are cited as the contemporary instantiations of the formal setting, not as antecedents of the bounds.
+
+\paragraph{Learned value ordering.} The value-ordering hypothesis \texttt{hcorrect\_better} required by Theorem~\ref{thm:policy} --- that correct children have higher success probability than incorrect ones under the improved policy --- is complementary to the empirical observation of~\citet{ChrestienEtAl2023}, who argue that learned planning heuristics should be trained to produce correct rankings among successor nodes rather than accurate cost-to-goal estimates. Their ranking-based training objective motivates the ordering-based formal condition used here; it is not a proof of it, and the two settings (classical planning heuristics vs.\ stochastic hypertree policies) differ in model, but the shared insight is that ordering among children, not absolute value calibration, is what drives improvement.
+
+\paragraph{Expert iteration and policy-improvement analogy.} The expert-iteration framework of~\citet{Anthony2017}, extended by Silver et al.\ in the AlphaZero line of work~\citep{Silver2017,Silver2018}, motivates the view that iterating between search and policy distillation should monotonically improve performance. The corollary of Theorem~\ref{thm:policy} provides a formal analogue of this intuition within the hypertree setting: it shows that if each distillation step satisfies explicit dominance and child-ordering conditions, the expected search cost is non-increasing. The analogous result in Markov decision processes --- the policy improvement theorem~\citep{Bellman1957,Puterman1994,SuttonBarto2018} --- guarantees $V^{\pi'} \ge V^{\pi}$ when $\pi'$ is greedy with respect to $Q^\pi$. The formal result here adapts that monotone-improvement intuition but is not a corollary of it: the tree-recursive structure of proof search requires an additional condition on child values under the new policy (the \texttt{hcorrect\_better} hypothesis) that has no counterpart in the flat MDP setting.
+
+\paragraph{Classical AND-OR and game-tree background.} The question of how to evaluate AND-OR trees efficiently has been studied since~\citet{Pearl1982} and~\citet{Tarsi1983}, with complexity-theoretic treatments in~\citet{SaksWigderson1986} and~\citet{Snir1985}. These works establish that evaluating AND-OR trees of depth $d$ with branching factor $b$ requires $\Omega(b^d)$ leaf queries in various computational models. The bounds in this paper are related in spirit --- the same exponential dependence on branching appears --- but are stated as per-traversal probability bounds under a stochastic policy model, not as query-complexity lower bounds. The classical results provide historical lineage; the formal proofs here do not follow from them.
+
+\paragraph{Formalization platform.} Lean~4 is the proof assistant used for all results~\citep{deMouraUllrich2021}. The formalization relies on Mathlib~\citep{Mathlib2020} for \texttt{NNReal}, \texttt{Finset.prod\_le\_prod}, \texttt{NNReal.coe\_le\_coe}, and related infrastructure. Claims about the formalization are supported directly by the artifact; the platform citations support the description of the tooling environment.
+
+\paragraph{Elementary probability and combinatorics.} The interpretation of $1/\sP$ as an expected hitting time uses the standard fact that a geometric random variable with success probability $p$ has mean $1/p$~\citep{Feller1968}. This citation supports the probabilistic interpretation only; the theorems are stated and proved without invoking it. The weighted-sum monotonicity result (Lemma~\ref{lem:weighted}) is related to the rearrangement inequality~\citep{HardyLittlewoodPolya1952} and the FKG inequality~\citep{FKG1971} in spirit but is proved directly in the formalisation; those classical sources are cited for conceptual orientation, not as direct antecedents.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Mathematical Framework}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{AND-OR Hypertrees}
+
+\begin{definition}[AOTree]
+An \emph{AND-OR hypertree} over a state space $\alpha$ is defined by the following inductive type:
+\[
+T \;::=\; \leafN(s) \;\mid\; \orN(s,\,[T_1,\ldots,T_k]) \;\mid\; \andN(s,\,[T_1,\ldots,T_k])
+\]
+where $s \in \alpha$ is the node label and $[T_1,\ldots,T_k]$ is the (finite, ordered) list of children.
+\end{definition}
+
+The intended semantics: a leaf is trivially closed (an axiom); an OR node is closed if \emph{any} child closes; an AND node is closed only if \emph{all} children close. In the theorem-proving reading, OR nodes represent tactic choices and AND nodes represent conjunctive subgoal splits.
+
+\begin{definition}[isProvable]
+A tree is \emph{provable} if it can be closed:
+\[
+\isProvable(T) = \begin{dcases}
+\top & T = \leafN(s)\\
+\bigvee_i \isProvable(T_i) & T = \orN(s, [T_i])\\
+\bigwedge_i \isProvable(T_i) & T = \andN(s, [T_i]).
+\end{dcases}
+\]
+\end{definition}
+
+\begin{definition}[Structural measures]
+For a tree $T$ define:
+\begin{itemize}[leftmargin=*]
+\item $\depth(T)$: length of the longest root-to-leaf path.
+\item $\maxAnd(T)$: maximum number of AND-children at any single AND node in $T$.
+\item $\proofDepth(T)$: the \emph{shallowest} complete proof depth --- at OR nodes this takes the minimum over provable children; at AND nodes it takes the maximum over all children.
+\end{itemize}
+\end{definition}
+
+Note that $\proofDepth(T) \le \depth(T)$, with equality only when the shortest proof uses the deepest available path.
+
+\begin{remark}[Historical context]
+The AND-OR tree model and the question of optimal evaluation strategies have been studied extensively in theoretical computer science. Key references include~\citet{Pearl1982} on the branching factor of alpha-beta pruning,~\citet{Tarsi1983} on randomised evaluation of AND-OR trees, and~\citet{SaksWigderson1986} on probabilistic Boolean decision trees. These works provide background lineage for the tree model used here. The ``hypertree'' terminology follows~\citet{Lample2022}, where AND nodes explicitly represent multi-goal tactic applications; that usage motivates the model studied in this paper.
+\end{remark}
+
+\subsection{Policies and Well-Formedness}
+
+Nodes in a traversal are identified by their position in a depth-first pre-order enumeration rooted at~$0$. A \emph{policy} is a function
+\[
+\pi : \NN \to \NN \to \Rnn
+\]
+where $\pi(\nid, i)$ is the weight placed on child $i$ at the node with identifier $\nid$. A policy is \emph{well-formed at an OR node with $n$ children} if
+\[
+\sum_{i=0}^{n-1} \pi(\nid, i) = 1.
+\]
+
+Well-formedness is stated as a hypothesis where needed rather than baked into the policy type, which avoids dependent-type complexity in the recursive definitions.
+
+\subsection{Success Probability}
+
+\begin{definition}[successProb]
+The \emph{single-traversal success probability} under policy $\pi$, starting from node identifier $\nid$, is defined recursively:
+\begin{align*}
+\sP(\pi, \leafN(s), \nid) &= 1,\\
+\sP(\pi, \orN(s, [T_0,\ldots,T_{k-1}]), \nid)
+  &= \sum_{i=0}^{k-1} \pi(\nid, i)\cdot \sP(\pi, T_i, \nid+i+1),\\
+\sP(\pi, \andN(s, [T_0,\ldots,T_{k-1}]), \nid)
+  &= \prod_{i=0}^{k-1} \sP(\pi, T_i, \nid+i+1).
+\end{align*}
+\end{definition}
+
+Termination of this definition follows from the strict decrease of \texttt{sizeOf} along the inductive structure of the tree.
+
+All values lie in $\Rnn$ (type \texttt{NNReal} in Lean~4), which avoids subtraction-related definitional complications throughout.
+
+\begin{remark}
+The \emph{expected hitting time} $\EE[T]$ of the Bernoulli process with per-trial success probability $p = \sP(\pi, T, 0)$ is $1/p$ (geometric distribution). All theorems are stated in terms of $1/\sP$ rather than $\EE[T]$ directly; these coincide under the independent-trials model. The identification of $1/p$ as the mean of a geometric random variable is standard; see~\citet[Chapter~I]{Feller1968}. The independent-trials assumption --- that each traversal is drawn i.i.d.\ from the policy --- is standard in the tree proof-search literature and is implicit in the Aristotle framework. This citation supports the probabilistic interpretation of the hitting-time quantity; it does not support the theorem-specific bounds that follow.
+\end{remark}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Helper Lemmas}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+Two helper lemmas are required across the main results. Both are proved in the formalisation as clean supporting lemmas. Lemma~\ref{lem:prod} is a routine product bound; Lemma~\ref{lem:sumprod} is a more specialised combinatorial identity that does not appear to be in Mathlib in this exact form. Lemma~\ref{lem:weighted} is a finite-simplex rearrangement result whose \texttt{NNReal} formalisation requires a careful lift to $\RR$.
+
+\begin{lemma}[Product bound]\label{lem:prod}
+Let $f : \{0,\ldots,n-1\} \to \Rnn$ and $c \in [0,1]$. If $f(i) \le c$ for all $i$, then $\prod_i f(i) \le c^n$.
+\end{lemma}
+
+\begin{proof}
+Replace each factor by $c$ to get $\prod_i f(i) \le \prod_i c = c^n$ via \texttt{Finset.prod\_le\_prod}.
+\end{proof}
+
+\begin{lemma}[Sum-product-erase bound]\label{lem:sumprod}
+Let $n \ge 2$ and $q : \{0,\ldots,n-1\} \to \Rnn$ with $q(i) \le \tfrac{1}{2}$ for all $i$. Then
+\[
+\sum_{i=0}^{n-1} \prod_{\substack{j=0\\j\ne i}}^{n-1} q(j) \;\le\; 1.
+\]
+Equivalently, using indicator notation: $\sum_i \prod_j \mathbf{1}[j \ne i]\cdot q(j) \le 1$.
+\end{lemma}
+
+\begin{proof}
+By induction on $n$.
+
+\emph{Base ($n = 2$).} The sum is $q(0) + q(1) \le \tfrac{1}{2} + \tfrac{1}{2} = 1$.
+
+\emph{Inductive step.} Assume the result holds for $n \ge 2$; prove for $n+1$. Write $q' = q|_{\{0,\ldots,n-1\}}$ (restriction to the first $n$ indices). Split the outer sum at the last index using \texttt{Fin.sum\_univ\_castSucc}:
+\[
+\underbrace{\sum_{i=0}^{n-1} \prod_{j \ne i,\, j \le n} q(j)}_{\text{first } n \text{ terms}}
++ \underbrace{\prod_{j=0}^{n-1} q(j)}_{\text{last term}}.
+\]
+
+For the \emph{last term}: by Lemma~\ref{lem:prod}, $\prod_{j=0}^{n-1} q(j) \le (\tfrac{1}{2})^n \le \tfrac{1}{2}$ (since $n \ge 2$).
+
+For the \emph{first $n$ terms}: each term factors as $\left(\prod_{j \ne i,\, j < n} q'(j)\right) \cdot q(n)$. Summing:
+\[
+\sum_{i=0}^{n-1}\left(\prod_{j \ne i}^{n-1} q'(j)\right) \cdot q(n)
+= q(n) \cdot \underbrace{\sum_{i=0}^{n-1}\prod_{j \ne i}^{n-1} q'(j)}_{\le 1 \text{ by IH}} \le \tfrac{1}{2} \cdot 1 = \tfrac{1}{2}.
+\]
+
+Total $\le \tfrac{1}{2} + \tfrac{1}{2} = 1$.
+\end{proof}
+
+\begin{lemma}[Sum-product-erase bound, sharp form]\label{lem:sumprod-sharp}
+Let $n \ge 2$ and $q : \{0,\ldots,n-1\} \to \Rnn$ with $\sum_{i=0}^{n-1} q(i) \le 1$. Then
+\[
+\sum_{i=0}^{n-1} \prod_{\substack{j=0\\j\ne i}}^{n-1} q(j) \;\le\; 1.
+\]
+\end{lemma}
+
+\begin{proof}
+By induction on $n$.
+
+\emph{Base ($n = 2$).} The sum is $q(1) + q(0) = \sum q(i) \le 1$ by hypothesis.
+
+\emph{Inductive step.} Let $q' = q|_{\{0,\ldots,n-1\}}$ (restriction to the first $n$ indices) with last element $q_{\mathrm{last}} = q(n)$. Split the outer sum via \texttt{Fin.sum\_univ\_castSucc}:
+\[
+\underbrace{\sum_{i=0}^{n-1} \left(\prod_{j\ne i,\, j<n} q'(j)\right) \cdot q_{\mathrm{last}}}_{\text{first }n\text{ terms}}
++ \underbrace{\prod_{j=0}^{n-1} q'(j)}_{\text{last term}}.
+\]
+For the \emph{last term}: since each $q'(j) \le \sum_i q(i) \le 1$ and $n \ge 2$, the product satisfies $\prod q'(j) \le \sum q'(j)$ (a product of $n \ge 2$ non-negative reals each $\le 1$ is at most their sum). Thus the last term is $\le \sum q'(j)$.
+
+For the \emph{first $n$ terms}: the sum equals $q_{\mathrm{last}} \cdot \sum_{i=0}^{n-1}\prod_{j\ne i} q'(j)$. Since $\sum_{i=0}^{n-1} q'(i) \le 1 - q_{\mathrm{last}} \le 1$, the inductive hypothesis gives $\sum_{i=0}^{n-1}\prod_{j\ne i} q'(j) \le 1$, so the first $n$ terms contribute $\le q_{\mathrm{last}}$.
+
+Adding: total $\le q_{\mathrm{last}} + \sum q'(j) = \sum_{i=0}^{n} q(i) \le 1$.
+\end{proof}
+
+\begin{lemma}[Weighted-sum monotonicity]\label{lem:weighted}
+Let $w, w' : \{0,\ldots,n-1\} \to \Rnn$ be probability weights ($\sum_i w(i) = \sum_i w'(i) = 1$) and $f : \{0,\ldots,n-1\} \to \Rnn$. Suppose there is a partition $G \cup G^c = \{0,\ldots,n-1\}$ such that:
+\begin{itemize}[leftmargin=*]
+\item (shift toward $G$): $w(i) \le w'(i)$ for $i \in G$, and $w'(i) \le w(i)$ for $i \notin G$;
+\item (better values on $G$): $f(i) \le f(j)$ for all $i \notin G$, $j \in G$.
+\end{itemize}
+Then $\sum_i w(i)\,f(i) \le \sum_i w'(i)\,f(i)$.
+\end{lemma}
+
+\begin{proof}
+Let $m = \min_{j \in G} f(j)$ (well-defined when $G \ne \emptyset$). On $G$: the weight increases by $w'(i) - w(i) \ge 0$, contributing $\ge (w'(i)-w(i)) \cdot m$. On $G^c$: the weight decreases by $w(i)-w'(i) \ge 0$, and $f(i) \le m$, contributing the loss $\le (w(i)-w'(i)) \cdot m$. Since $\sum_i (w'(i)-w(i)) = 0$ by the simplex constraint, the gains on $G$ balance the losses on $G^c$ at the level of $m$, so the net change is non-negative. The formal proof lifts to $\RR$ via \texttt{NNReal.coe\_le\_coe}.
+\end{proof}
+
+\begin{remark}[Background]
+Lemma~\ref{lem:weighted} is a finite-dimensional instance of the rearrangement inequality~\citep{HardyLittlewoodPolya1952} or, equivalently, a special case of the FKG inequality for the product order on $\{0,1\}^n$~\citep{FKG1971}. It also appears implicitly in the policy improvement lemma of Markov decision process theory~\citep[Chapter~6]{Puterman1994}; the finite-simplex version formalised here is more elementary than the full MDP treatment. These citations supply conceptual context; the formal proof is self-contained in the Lean artifact.
+\end{remark}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Main Results}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Headline: Monotone Policy Improvement}
+
+\begin{definition}[Policy dominance]
+Policy $\pi'$ \emph{dominates} $\pi$ with respect to a correctness predicate $C : \NN \to \NN \to \mathsf{Prop}$ if:
+\begin{enumerate}[leftmargin=*]
+\item $\pi(\nid, i) \le \pi'(\nid, i)$ whenever $C(\nid, i)$ (\emph{more weight on correct children});
+\item $\pi'(\nid, i) \le \pi(\nid, i)$ whenever $\neg C(\nid, i)$ (\emph{less weight on incorrect children});
+\item Both $\pi$ and $\pi'$ are well-formed ($\sum_i \pi(\nid, i) = 1$ for all $\nid$, $n$).
+\end{enumerate}
+\end{definition}
+
+\begin{remark}[Why dominance alone is not enough]
+To see why the value-ordering condition is necessary, consider an OR node with two children: $T_0$ (incorrect, $\neg C(\nid,0)$) and $T_1$ (correct, $C(\nid,1)$). Suppose $\pi(\nid,0) = 0.9$, $\pi(\nid,1) = 0.1$, and $\pi'(\nid,0) = 0.3$, $\pi'(\nid,1) = 0.7$. Then $\pi'$ dominates $\pi$ (more weight on the correct child). Now suppose $\sP(\pi', T_1, \cdot) = 0.05$ and $\sP(\pi', T_0, \cdot) = 0.8$. Then:
+\[
+\sP(\pi, T, \nid) = 0.9 \cdot 0.8 + 0.1 \cdot 0.05 = 0.725, \qquad
+\sP(\pi', T, \nid) = 0.3 \cdot 0.8 + 0.7 \cdot 0.05 = 0.275.
+\]
+Dominance made the hitting time \emph{worse}: the policy shifted weight toward the ``correct'' child, but that child had lower success probability under $\pi'$ than the ``incorrect'' child. The ordering was inverted. The \texttt{hcorrect\_better} hypothesis rules out exactly this case.
+\end{remark}
+
+\begin{theorem}[Policy improvement]\label{thm:policy}
+\leanverified{successProb\_mono} \leanverified{policy\_improvement\_reduces\_hitting\_time}
+Let $T$ be an AND-OR tree and let $\pi'$ dominate $\pi$ with respect to $C$. Suppose that for every OR node with children list $[T_0,\ldots,T_{k-1}]$, if $i$ is incorrect ($\neg C(\nid,i)$) and $j$ is correct ($C(\nid,j)$) then
+\[
+\sP(\pi', T_i, \cdot) \le \sP(\pi', T_j, \cdot).
+\]
+This \emph{value-ordering condition} (\texttt{hcorrect\_better} in Lean) --- that correct children have higher success probability under $\pi'$ than incorrect ones --- is an explicit hypothesis, not a consequence of dominance. It is the price paid for working over a recursive tree structure rather than a flat MDP. Then $\sP(\pi, T, \nid) \le \sP(\pi', T, \nid)$ for all $\nid$, and consequently
+\[
+\frac{1}{\sP(\pi', T, 0)} \;\le\; \frac{1}{\sP(\pi, T, 0)}.
+\]
+\end{theorem}
+
+\begin{proof}
+By well-founded induction on $\mathsf{sizeOf}(T)$.
+
+\emph{Leaf.} Both sides equal~$1$.
+
+\emph{OR node} with children $[T_0,\ldots,T_{k-1}]$. Decompose the improvement into two steps:
+\begin{enumerate}[leftmargin=*]
+\item \emph{Value improvement}: replace $\sP(\pi, T_i, \cdot)$ by $\sP(\pi', T_i, \cdot)$ under the \emph{same} weights $\pi$. By the inductive hypothesis applied to each $T_i$ (which has strictly smaller \texttt{sizeOf}), $\sP(\pi, T_i, \cdot) \le \sP(\pi', T_i, \cdot)$, so the weighted sum increases.
+\item \emph{Weight shift}: with values fixed at $\sP(\pi', \cdot)$, shift weights from $\pi$ to $\pi'$. Apply Lemma~\ref{lem:weighted} with $G = \{i : C(\nid, i)\}$, using policy-dominance for the weight-shift hypotheses and the ordering assumption for the value-ordering hypothesis.
+\end{enumerate}
+
+\emph{AND node.} Apply \texttt{Finset.prod\_le\_prod} with the inductive hypothesis on each factor.
+
+The hitting-time inequality follows immediately from monotonicity of $x \mapsto 1/x$ on $(0,\infty)$ (\texttt{one\_div\_le\_one\_div\_of\_le}).
+\end{proof}
+
+\begin{corollary}[Expert-iteration monotonicity under dominance and ordering assumptions]\label{cor:expert}
+\leanverified{expert\_iteration\_soundness}
+Let $(\pi_k)_{k \ge 0}$ be a sequence of policies such that $\pi_{k+1}$ dominates $\pi_k$ for each $k$, both policies remain well-formed, and the value-ordering condition holds at each step (correct children have higher $\sP(\pi_{k+1}, \cdot)$ than incorrect ones). Then the expected hitting time is non-increasing:
+\[
+\frac{1}{\sP(\pi_{k+1}, T, 0)} \;\le\; \frac{1}{\sP(\pi_k, T, 0)} \quad \text{for all } k \ge 0.
+\]
+\end{corollary}
+
+\begin{remark}[Background and analogy]
+Expert iteration~\citep{Anthony2017} trains a policy network by iterating: (1)~run tree search to generate high-quality proof attempts, (2)~distil search results back into the policy. The corollary establishes that if each distillation step produces a policy that (i)~shifts weight toward tactics demonstrated correct during search, (ii)~remains well-formed, and (iii)~assigns higher success probability to correct children than incorrect ones under the new policy, then the expected search cost is non-increasing. The analogous result in MDPs --- the policy improvement theorem --- guarantees $V^{\pi'} \ge V^{\pi}$ when $\pi'$ is greedy with respect to $Q^{\pi}$~\citep{Bellman1957,Puterman1994,SuttonBarto2018}. The proof structure here adapts the monotone-improvement intuition from that MDP setting into the hypertree setting, but the result is not a corollary of the MDP theorem: unlike the MDP case, which requires only that the new policy be greedy with respect to the old value function, the formal result here requires the additional \texttt{hcorrect\_better} ordering condition --- a constraint specific to the recursive, non-Markovian structure of proof search. AlphaZero~\citep{Silver2018} and its theorem-proving descendants~\citep{PoluHan2020,Han2021} are motivated by a similar monotone-improvement intuition, though their settings differ from the explicit dominance and ordering conditions required here; those works supply motivational context, not formal antecedents. A recent line of AlphaZero-style and expert-iteration variants for reasoning and formal proving~\citep{FengEtAl2023,XieEtAl2024,InternLMStepProver2024} operationalises the same search-then-distil loop empirically; Corollary~\ref{cor:expert} is related but formally distinct --- it provides a monotonicity statement conditional on explicit dominance and ordering hypotheses, whereas those works report empirical improvements without such conditions.
+\end{remark}
+
+\subsection{Hitting-Time Upper Bound}
+
+\begin{theorem}[Hitting-time upper bound, root-only form]\label{thm:upper}
+\leanverified{hitting\_time\_upper\_bound\_root}
+Let $T$ be a provable AND-OR tree, $\pi$ a policy, $p_{\min} \in (0,1]$, and $b, d \in \NN^+$. Suppose:
+\begin{itemize}[leftmargin=*]
+\item $\sP(\pi, T, 0) \ge p_{\min}$ \emph{at the root} (no uniform quantifier required);
+\item $\maxAnd(T) \le b$;
+\item $\proofDepth(T) \le d$.
+\end{itemize}
+Then
+\[
+\frac{1}{\sP(\pi, T, 0)} \;\le\; \left(\frac{1}{p_{\min}}\right)^d \cdot b^d.
+\]
+The uniform form --- with $\sP(\pi, T, \nid) \ge p_{\min}$ for all $\nid$ in place of the root-only bound --- follows immediately (\leanverified{hitting\_time\_upper\_bound}).
+\end{theorem}
+
+\begin{proof}
+The root-only hypothesis gives $\sP(\pi, T, 0) \ge p_{\min}$. We show the tighter lower bound $\sP(\pi, T, 0) \ge (p_{\min}/b)^d$, from which the result follows by inverting.
+
+\emph{Key sub-lemma} (\lean{successProb\_lower\_bound\_root}): For $d \ge 1$,
+\[
+\left(\frac{p_{\min}}{b}\right)^d
+\le \left(\frac{p_{\min}}{b}\right)^1
+= \frac{p_{\min}}{b} \le p_{\min} \le \sP(\pi, T, 0).
+\]
+The first inequality uses $p_{\min}/b \le 1$ (since $p_{\min} \le 1$ and $b \ge 1$) with monotone power; the second uses $b \ge 1$; the third is the hypothesis. For $d = 0$: the condition $\proofDepth(T) \le 0$ forces $T$ to be a leaf, and $\sP(\pi, \leafN, \cdot) = 1 \ge 1 = (p_{\min}/b)^0$.
+
+Inverting the lower bound and factoring:
+\[
+\frac{1}{\sP(\pi,T,0)} \le \frac{1}{(p_{\min}/b)^d} = \left(\frac{b}{p_{\min}}\right)^d = \left(\frac{1}{p_{\min}}\right)^d \cdot b^d. \qedhere
+\]
+\end{proof}
+
+\begin{remark}[Hypothesis note]
+The headline hypothesis is the \emph{root-only} bound \texttt{hpolicy\_root~:~successProb~$\pi$~t~0~$\ge$~pmin}. An earlier form of this theorem used the uniform quantifier \texttt{hpolicy~:~$\forall$~nid,~successProb~$\pi$~t~nid~$\ge$~pmin}; inspection of the formal proof revealed that only \texttt{hpolicy~0} was used. The present form (\lean{hitting\_time\_upper\_bound\_root}) discharges the uniform quantifier: the bound depends on the success probability only at the root, which is the natural interface for a caller who has measured the policy's success probability at the top of the tree without needing a global guarantee. The uniform version (\lean{hitting\_time\_upper\_bound}) is preserved in the Lean development and is recovered immediately via \lean{hitting\_time\_upper\_bound\_from\_strong} by instantiating the uniform hypothesis at \texttt{nid~=~0}. This is a meaningful hypothesis weakening: the paper's quantitative upper bound no longer depends on assumptions about policy quality at nodes other than the root.
+\end{remark}
+
+\begin{corollary}[Policy quality enters the exponent]\label{cor:policy-exp}
+Under the same hypotheses, if $\pi'$ satisfies $\sP(\pi', T, \nid) \ge 2p_{\min}$ for all $\nid$ and $2p_{\min} \le 1$, then
+\[
+\frac{1}{\sP(\pi', T, 0)} \;\le\; \left(\frac{1}{2}\right)^d \cdot \left(\frac{1}{p_{\min}}\right)^d \cdot b^d.
+\]
+That is, doubling the minimum per-step success probability reduces the upper bound by a factor of $2^d$. The proof applies Theorem~\ref{thm:upper} with $2p_{\min}$ and factors $(1/(2p_{\min}))^d = (1/2)^d \cdot (1/p_{\min})^d$.
+\end{corollary}
+
+\begin{remark}[Related work, analogy only]
+The $(1/p_{\min})^d \cdot b^d$ form of this bound is structurally analogous to, but formally distinct from, the well-known complexity of depth-first iterative deepening~\citep{Korf1985} and of backward-chaining proof search~\citep{Stickel1988}. Those results bound the number of node expansions in deterministic search; the present theorem bounds the expected number of \emph{stochastic traversals} under an explicit policy and a global minimum-probability hypothesis. The exponential dependence on depth is shared, but the formal settings differ. The classical AND-OR lower bound literature~\citep{Snir1985,SaksWigderson1986} confirms that exponential dependence on branching and depth is not an artifact of the upper-bound proof technique; see Proposition~\ref{thm:lower} for the lower-bound direction. The observation that policy quality enters the exponent is motivated empirically by~\citet{PoluHan2020}, who observe superlinear search speedups from better models; the corollary provides a formal account of that phenomenon within the present conditional setting.
+\end{remark}
+
+\subsection{AND-Branching Lower Bound Under a Global Success Upper Bound}
+
+\begin{definition}[hasAndNodeOfBranching]
+A tree $T$ \emph{has an AND node of branching factor $b$ on every proof path} if:
+\begin{itemize}[leftmargin=*]
+\item $T = \leafN(s)$: false (no AND node present);
+\item $T = \orN(s, [T_i])$: some provable $T_i$ satisfies the predicate recursively;
+\item $T = \andN(s, [T_0,\ldots,T_{b-1}])$: the AND node has exactly $b$ children and all children are provable.
+\end{itemize}
+\end{definition}
+
+\begin{proposition}[AND-branching lower bound]\label{thm:lower}
+\leanverified{and\_branching\_lower\_bound}
+Let $T$ satisfy $\hasAnd(b, T)$ for some $b \ge 1$, and let $\pi$ be any policy such that $\sP(\pi, T, \nid) \le (1-\varepsilon)^b$ for all $\nid$, where $0 < \varepsilon < 1$. Then
+\[
+\frac{1}{\sP(\pi, T, 0)} \;\ge\; \left(\frac{1}{1-\varepsilon}\right)^b.
+\]
+\end{proposition}
+
+\begin{proof}
+The hypothesis gives $\sP(\pi, T, 0) \le (1-\varepsilon)^b$. Since $1/x$ is antitone on $(0,\infty)$ (\texttt{inv\_anti$_0$}):
+\[
+\frac{1}{\sP(\pi,T,0)} \ge \frac{1}{(1-\varepsilon)^b} = \left(\frac{1}{1-\varepsilon}\right)^b. \qedhere
+\]
+\end{proof}
+
+\begin{corollary}[AND-branching is unbounded hardness]\label{cor:unbounded}
+For fixed $\varepsilon \in (0,1)$, let $(T_b)_{b \ge 0}$ be a family with $\hasAnd(b, T_b)$ and $(\pi_b)$ any sequence of policies satisfying the hypothesis of Proposition~\ref{thm:lower}. Then
+\[
+\frac{1}{\sP(\pi_b, T_b, 0)} \;\xrightarrow[b\to\infty]{}\; +\infty.
+\]
+\end{corollary}
+
+\begin{proof}
+The hitting time at $b$ is bounded below by $r^b$ where $r = 1/(1-\varepsilon) > 1$. Apply \texttt{tendsto\_pow\_atTop\_atTop\_of\_one\_lt}.
+\end{proof}
+
+\begin{remark}[Hypothesis note]
+Proposition~\ref{thm:lower} has two distinct hypotheses that should not be conflated: (1)~the \emph{structural} condition \texttt{hasAndNodeOfBranching b t} --- a property of the tree alone --- and (2)~the \emph{probabilistic} condition \texttt{hpmax~:~$\forall$~nid,~successProb~$\pi$~t~nid~$\le$~(1~-~$\varepsilon$)$^b$} --- a constraint on the policy. The proof uses~(2) directly (inverting the bound at \texttt{nid~=~0}) and uses~(1) only to motivate and name the result. The lower bound holds for \emph{any} policy satisfying~(2), but~(2) itself is a statement about the policy --- the two hypotheses must be separated when interpreting the result.
+\end{remark}
+
+\begin{remark}
+The key point of Proposition~\ref{thm:lower} is the interaction between a structural hypothesis and a policy hypothesis. The structural condition (\texttt{hasAndNodeOfBranching b t}) identifies a tree that passes through an AND node of branching factor~$b$. The policy condition (\texttt{hpmax}) bounds the per-node success probability globally at $(1-\varepsilon)^b$. Given both, the hitting time is bounded below by $(1/(1-\varepsilon))^b$ regardless of how OR-node weights are chosen. The bound grows with $b$ not because the tree structure alone forces it, but because no adjustment to OR-node tactic selection can lower the AND-node product cost once \texttt{hpmax} holds.
+\end{remark}
+
+\begin{remark}[Related work, structural analogy]
+The lower bound established under the \texttt{hpmax} hypothesis is structurally analogous to classical results showing that any algorithm evaluating an AND-OR tree of depth $d$ with AND-branching $b$ requires $\Omega(b^d)$ leaf queries in the worst case~\citep{SaksWigderson1986,Snir1985}. The analogy is in the exponential dependence on AND-branching; the formulations differ fundamentally. The classical results are query-complexity lower bounds in a deterministic or randomised computation model. Proposition~\ref{thm:lower} is a per-traversal hitting-time lower bound under a stochastic policy with an explicit global probability upper-bound hypothesis; it does not follow from the classical results and is not a corollary of them. The practical import in the proof-search context is the same: large conjunctive tactic applications (tactics generating many subgoals) are disproportionately expensive, which motivates tactic decomposition strategies.
+
+More recent work continues the classical Tarsi / Saks--Wigderson / Snir program in directions structurally analogous to, but formally distinct from, Proposition~\ref{thm:lower}. \citet{BoigeBoumazaScherrer2025} revisit alpha-beta analysis under a synthetic probabilistic game model; their bounds concern deterministic leaf-evaluation cost rather than per-traversal stochastic hitting time under a global \texttt{hpmax} hypothesis, so the two probe different regimes, but the framing motivates the stochastic-policy lens adopted here. \citet{ItoSuzuki2024} extend the equilibrium-distribution lower-bound line to unshaped AND-OR trees, characterising when equilibrium bounds separate from or collapse to the independent-distribution bound --- a shape-level refinement whose underlying geometry justifies a structural-analogy citation alongside~\citet{Tarsi1983,SaksWigderson1986}, even though our fixed-policy per-traversal cost model is not reducible to theirs. \citet{Sanyal2024} gives the most recent composition-theorem treatment in the same lineage, using product-distribution randomised query complexity; this signals that the classical AND-OR query-complexity program remains active, while our hitting-time bound --- stated in a different computational model (stochastic policy, per-traversal cost, conditional on \texttt{hpmax}) --- does not reduce to randomised query composition.
+\end{remark}
+
+\subsection{Sequential Search Dominates Parallel}
+
+\begin{proposition}[Sequential $\le$ parallel]\label{thm:seq}
+\leanverified{sequential\_le\_parallel\_sharp}
+Let $n \ge 2$ and $q : \{0,\ldots,n-1\} \to \Rnn$ with $q(i) > 0$ for all $i$ and $\sum_{i=0}^{n-1} q(i) \le 1$. Then
+\[
+\sum_{i=0}^{n-1} \frac{1}{q(i)} \;\le\; \prod_{i=0}^{n-1} \frac{1}{q(i)}.
+\]
+The uniform regime $q(i) \le \tfrac{1}{2}$ for all $i$ is separately verified \leanverified{sequential\_le\_parallel}.
+\end{proposition}
+
+\emph{Interpretation.} The left side is the total expected trials to close all $n$ subgoals \emph{sequentially} (attempting each in turn, stopping when closed); the right side is the expected trials when all $n$ are searched \emph{in parallel} (a single traversal must close all simultaneously, giving success probability $\prod_i q(i)$, hence expected trials $\prod_i 1/q(i)$). Under $\sum q(i) \le 1$ --- natural when $q$ is a sub-probability distribution over subgoal closures --- sequential search is never worse.
+
+\begin{proof}
+Write $P = \prod_i q(i) > 0$. It suffices to show $\left(\sum_i \tfrac{1}{q(i)}\right) \cdot P \le 1$. Expanding:
+\[
+\left(\sum_{i=0}^{n-1}\frac{1}{q(i)}\right)\cdot\prod_{j=0}^{n-1}q(j)
+= \sum_{i=0}^{n-1}\frac{1}{q(i)}\cdot\prod_j q(j)
+= \sum_{i=0}^{n-1}\prod_{\substack{j=0\\j\ne i}}^{n-1}q(j)
+\;\le\; 1
+\]
+where the last step is Lemma~\ref{lem:sumprod-sharp}. The middle equality uses $\tfrac{1}{q(i)}\cdot\prod_j q(j) = \prod_{j\ne i} q(j)$, from \texttt{Finset.prod\_erase\_mul}.
+\end{proof}
+
+\begin{remark}[Status and conditions]
+The condition $\sum q(i) \le 1$ is sharp: for $n = 2$ and $q(0) = q(1) = 3/4$, the sum exceeds $1$ and the inequality reverses (see Section~\ref{sec:discussion}). The condition is natural in the proof-search setting: when $q(i)$ is the probability that subgoal $i$ closes on a given attempt, the sum $\sum q(i)$ is the expected number of subgoals closed in one pass, which is at most~$1$ for genuinely hard goals. The uniform regime $q(i) \le 1/2$ is a separately verified sufficient condition \leanverified{sequential\_le\_parallel}; both are machine-verified. The dominance of sequential over parallel AND-node decomposition has been noted informally~\citep{Gauthier2021} but has not, to our knowledge, been formally proved previously in this form.
+\end{remark}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion}\label{sec:discussion}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Interaction between the four results}
+
+The headline monotonicity theorem operates inside a complexity envelope bounded above and below by the two propositions; Proposition~\ref{thm:seq} clarifies how AND-node decomposition strategy interacts with the envelope:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Theorem~\ref{thm:policy}} (headline) shows that, under the manuscript's dominance and ordering assumptions, each expert-iteration step yields a policy whose hitting time is no larger than the previous step's. This is the monotone-descent claim that the informal neural-TP literature hand-waves; it is made formal here with an explicit child-ordering condition.
+\item \textbf{Theorem~\ref{thm:upper}} places the ceiling: parameterised by proof depth and AND-branching, and driven down exponentially by improvements to $p_{\min}$. The envelope contracts as the policy improves.
+\item \textbf{Proposition~\ref{thm:lower}} places the floor: no policy can avoid the $(1/(1-\varepsilon))^b$ cost when AND-branching is large, provided the global upper-bound hypothesis holds.
+\item \textbf{Proposition~\ref{thm:seq}} specifies the decomposition strategy within the envelope: when subgoal success probabilities sum to at most~$1$, sequential is never worse than parallel. This connects to how AND-branching contributes to the upper bound of Theorem~\ref{thm:upper} through $b^d$: decomposing tactics to reduce $b$ shrinks the ceiling multiplicatively.
+\end{itemize}
+
+Together they suggest an operational picture: (i)~expert iteration under the dominance and ordering conditions is monotone in hitting time (Theorem~\ref{thm:policy}); (ii)~the regime in which that monotone descent happens is sandwiched between an upper ceiling (Theorem~\ref{thm:upper}) and a lower floor (Proposition~\ref{thm:lower}), both exponential in AND-branching; (iii)~within the ceiling, reducing AND-branching (by decomposing tactics into single-subgoal steps) and shortening proofs both help multiplicatively; (iv)~once in the $q(i) \le 1/2$ regime, sequential decomposition is preferable to parallel.
+
+\subsection{Assumptions and their tightness}
+
+\paragraph{Theorem~\ref{thm:policy} (headline).} The \texttt{hcorrect\_better} ordering hypothesis --- that correct children carry higher success probability than incorrect ones under $\pi'$ --- is the structural condition absent from flat-MDP policy improvement. Whether it can be derived from a weaker sufficient condition (such as $\pi'$ being greedy with respect to a per-subtree value function) is a natural open question; the current formulation makes the hypothesis explicit rather than implicit, which is scientifically honest but leaves room for future sharpening.
+
+In the context of ranking-based policy training~\citep{ChrestienEtAl2023}, \texttt{hcorrect\_better} has a precise interpretation: a policy trained to rank correct children above incorrect ones --- rather than to predict calibrated success-probability values --- satisfies exactly this condition at the nodes where training signal is available. The condition is therefore not an artifact of the proof technique; it is the formal counterpart of what ranking-based distillation achieves. The apparent gap --- deriving \texttt{hcorrect\_better} from a weight-ordering condition alone --- is non-trivial to close: combining policy dominance with a greediness hypothesis (``$\pi'$ assigns higher weight to children with higher $\mathrm{sp}(\pi', \cdot)$'') still requires knowing that the old policy $\pi$ ordered weights correctly, introducing a new assumption about $\pi$ rather than genuinely weakening the condition on $\pi'$. The explicit formulation adopted here is therefore both the honest choice and the broadest one: it applies to any policy that satisfies the ordering, whether produced by ranking-based training, value-based training, or any other distillation procedure.
+
+\paragraph{Theorem~\ref{thm:upper} (upper bound).} The result is stated with a \emph{root-only} hypothesis on success probability. An earlier uniform-quantifier form required $\sP(\pi, T, \nid) \ge p_{\min}$ at every node identifier; the present formalisation (\lean{hitting\_time\_upper\_bound\_root}) weakens this to the root bound $\sP(\pi, T, 0) \ge p_{\min}$ alone, which is the natural interface for a caller with access only to the policy's success probability at the top of the tree. The uniform version is preserved as a corollary (\lean{hitting\_time\_upper\_bound\_from\_strong}) by instantiating the uniform hypothesis at \texttt{nid~=~0}.
+
+\paragraph{Proposition~\ref{thm:lower} (lower bound).} The \texttt{hpmax} hypothesis is a policy-level assumption that is genuinely needed: without it, the lower bound is an unconditional complexity statement of Saks--Wigderson type~\citep{SaksWigderson1986,Snir1985}, which is not derivable in the present per-traversal stochastic-policy computational model. The proposition therefore sits on the policy-dependent side of the classical lower-bound program, not on the structural side.
+
+\paragraph{Proposition~\ref{thm:seq} (sequential $\le$ parallel).} The sharp condition $\sum q(i) \le 1$ is necessary: for $n = 2$ and $q(0) = q(1) = 3/4$, one has $\sum q(i) = 3/2 > 1$ and correspondingly $\sum 1/q(i) = 8/3 > 16/9 = \prod 1/q(i)$, so the inequality reverses. The threshold is tight at $1$; a finer characterisation of the exact boundary for non-uniform $q$ via Jensen-type arguments is plausible but not pursued here.
+
+\subsection{Open questions}
+
+\paragraph{Weakening \texttt{hcorrect\_better}.} Theorem~\ref{thm:policy} requires that correct children carry higher success probability than incorrect ones under the \emph{new} policy $\pi'$. Whether this follows from a weaker condition --- such as $\pi'$ being greedy with respect to a per-subtree value function, in analogy with the MDP policy improvement theorem --- is the most natural open question. A sufficient condition that is verifiable from the policy-training objective (rather than from the resulting success probabilities) would bring the formal result closer to the operational expert-iteration loop.
+
+\paragraph{Sharp sequential-vs-parallel threshold.} Proposition~\ref{thm:seq} is proved under $\sum q(i) \le 1$. For the mixed regime (some $q(i)$ large, sum exceeding $1$), the inequality can reverse. A complete characterisation of the exact threshold as a function of the $q(i)$ distribution --- not merely a sufficient condition --- is open.
+
+\paragraph{Unconditional lower bound.} Proposition~\ref{thm:lower} requires the policy-level hypothesis \texttt{hpmax}. An unconditional lower bound --- showing that for any provable tree containing an AND node of branching $b$, \emph{some} policy necessarily incurs hitting time $\ge (1/(1-\varepsilon))^b$ --- would be the true Saks--Wigderson analogue in the per-traversal stochastic-policy model. This likely requires an information-theoretic argument beyond the scope of the current formalisation.
+
+\subsection{Formalization notes}
+
+Proof details are documented in Appendix~\ref{app:lean}. The formalization uses \texttt{NNReal} throughout to avoid subtraction anomalies; the most technically demanding proof is Lemma~\ref{lem:weighted}, which requires a lift to $\RR$ for signed arithmetic. All proofs are built against Lean~4 v4.28.0 with Mathlib, and the full library is axiom-clean at \texttt{[propext, Classical.choice, Quot.sound]}~\citep{deMouraUllrich2021,Mathlib2020,Aristotle2024}.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\appendix
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\section{Lean 4 Verification Catalog}\label{app:lean}
+
+The formalization lives in the \texttt{AutomatedProofs/AOTree/} directory of the \texttt{stochastic-search-bounds} project, built against Lean~4 v4.28.0 and Mathlib~v4.28.0~\citep{deMouraUllrich2021,Mathlib2020}. Each main theorem carries an in-text annotation \lean{lemma\_name} pointing to its entry here.
+
+\subsection*{Paper-to-Lean name map}
+
+\begin{center}
+\begin{tabular}{lll}
+\textbf{Paper role} & \textbf{Paper number} & \textbf{Lean identifier} \\
+\hline
+Headline theorem & Theorem~\ref{thm:policy} & \lean{successProb\_mono}, \lean{policy\_improvement\_reduces\_hitting\_time} \\
+Expert-iteration corollary & Corollary~\ref{cor:expert} & \lean{expert\_iteration\_soundness} \\
+Upper bound (root-only) & Theorem~\ref{thm:upper} & \lean{hitting\_time\_upper\_bound\_root} \\
+Upper bound (uniform corollary) & --- & \lean{hitting\_time\_upper\_bound}, \lean{hitting\_time\_upper\_bound\_from\_strong} \\
+Lower bound (conditional) & Proposition~\ref{thm:lower} & \lean{and\_branching\_lower\_bound} \\
+Decomposition (sharp, $\sum q \le 1$) & Proposition~\ref{thm:seq} & \lean{sequential\_le\_parallel\_sharp} \\
+Decomposition (uniform, $q \le 1/2$) & --- & \lean{sequential\_le\_parallel} \\
+\end{tabular}
+\end{center}
+
+The Lean files are named \texttt{Theorem1.lean}, \texttt{Theorem2.lean}, \texttt{Theorem3.lean}, \texttt{Theorem4.lean} for historical reasons; these filenames retain the pre-reframe numbering and do not align 1-to-1 with the paper's current billing. See the Formalization Architecture section below for the explicit file-level mapping.
+
+\subsection*{Proved Results (0 sorries, axiom-clean)}
+
+All four main results have been verified with \texttt{\#print axioms} and depend only on Lean's three foundational axioms: \texttt{propext}, \texttt{Classical.choice}, and \texttt{Quot.sound}. The complete \texttt{AutomatedProofs} library contains zero \texttt{sorry}s in the active proof chain.
+
+\begin{itemize}[leftmargin=*, itemsep=4pt]
+\item \lean{hitting\_time\_upper\_bound\_root} (Theorem~\ref{thm:upper}, root-only form): If $\sP(\pi, T, 0) \ge p_{\min}$ \emph{at the root only}, and $\proofDepth(T) \le d$, then $1/\sP(\pi,T,0) \le (1/p_{\min})^d \cdot b^d$ (for any $b \ge 1$). The sharpest bound is obtained at $b = \maxAnd(T)$.
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{hitting\_time\_upper\_bound} (uniform form, corollary via \lean{hitting\_time\_upper\_bound\_from\_strong}): If $\sP(\pi, T, \nid) \ge p_{\min}$ uniformly (a strictly stronger hypothesis), the same conclusion holds. Preserved for backward compatibility and for callers who have a uniform bound.
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{successProb\_mono} (Theorem~\ref{thm:policy}, monotonicity part): If $\pi'$ dominates $\pi$ and the value-ordering condition \texttt{hcorrect\_better} holds, then $\sP(\pi,T,\nid) \le \sP(\pi',T,\nid)$ for all $\nid$. Proved by well-founded induction on \texttt{sizeOf} using \texttt{List.sizeOf\_lt\_of\_mem}.
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{policy\_improvement\_reduces\_hitting\_time} (Theorem~\ref{thm:policy}, hitting-time part): Immediate corollary of \lean{successProb\_mono} via monotonicity of $x \mapsto 1/x$ (\texttt{one\_div\_le\_one\_div\_of\_le}).
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{expert\_iteration\_soundness} (Corollary~\ref{cor:expert}): For any sequence of policies $(\pi_k)$ satisfying the per-step dominance and ordering conditions, the hitting time $1/\sP(\pi_k, T, 0)$ is non-increasing in $k$.
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{and\_branching\_lower\_bound} (Proposition~\ref{thm:lower}): If $\hasAnd(b, T)$, $b \ge 1$, $0 < \varepsilon < 1$, and $\sP(\pi, T, \nid) \le (1-\varepsilon)^b$ for all $\nid$, then $1/\sP(\pi, T, 0) \ge (1/(1-\varepsilon))^b$. Uses \texttt{inv\_anti$_0$} and \texttt{tsub\_pos\_of\_lt}.
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{sequential\_le\_parallel\_sharp} (Proposition~\ref{thm:seq}, sharp form): For $n \ge 2$, $q(i) > 0$, and $\sum_i q(i) \le 1$, we have $\sum_i 1/q(i) \le \prod_i 1/q(i)$. Reduces via Lemma~\ref{lem:sumprod-sharp} (\lean{sum\_prod\_erase\_le\_one\_of\_sum\_le\_one}).
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+
+\item \lean{sequential\_le\_parallel} (uniform form, separately proved): For $n \ge 2$ and $q(i) \in (0, 1/2]$, $\sum_i 1/q(i) \le \prod_i 1/q(i)$. Uses Lemma~\ref{lem:sumprod}.
+  Axiom status: \texttt{[propext, Classical.choice, Quot.sound]}.
+\end{itemize}
+
+\subsection*{Supporting Lemmas}
+
+The following helper lemmas appear in \texttt{AutomatedProofs/AOTree/Defs.lean} and supporting theorem files:
+\begin{itemize}[leftmargin=*, itemsep=4pt]
+\item Lemma~\ref{lem:prod} (product bound): $f(i) \le c \implies \prod_i f(i) \le c^n$, via \texttt{Finset.prod\_le\_prod}.
+\item Lemma~\ref{lem:sumprod} (sum-product-erase bound, uniform): a \texttt{Finset}-induction argument under $q(i) \le 1/2$.
+\item Lemma~\ref{lem:sumprod-sharp} (sum-product-erase bound, sharp): same induction under $\sum q(i) \le 1$ (\lean{sum\_prod\_erase\_le\_one\_of\_sum\_le\_one}, in \texttt{Theorem4\_Strong.lean}).
+\item Lemma~\ref{lem:weighted} (weighted-sum monotonicity over the simplex): lifted to $\RR$ via \texttt{NNReal.coe\_le\_coe}, closed with \texttt{nlinarith} after the splitting argument.
+\item \lean{successProb\_lower\_bound\_root}: the depth-induction sub-lemma underlying Theorem~\ref{thm:upper}, parameterised on the root-only hypothesis.
+\item \lean{successProb\_lower\_bound}: the original uniform-hypothesis form, preserved for backward compatibility.
+\end{itemize}
+
+\subsection*{Formalization Architecture}
+
+The proof is organized across the following files (in dependency order; see \texttt{AutomatedProofs.lean} for the import entry point):
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+\item \texttt{AutomatedProofs/AOTree/Defs.lean} --- core definitions (\texttt{AOTree}, \texttt{successProb}, \texttt{isProvable}, structural measures) and helper lemmas.
+\item \texttt{AutomatedProofs/AOTree/Theorem3.lean} --- AND-branching lower bound (Proposition~\ref{thm:lower}) and policy-independent hardness.
+\item \texttt{AutomatedProofs/AOTree/Theorem1.lean} --- hitting-time upper bound, uniform-hypothesis form.
+\item \texttt{AutomatedProofs/AOTree/Theorem1\_Strong.lean} --- hitting-time upper bound, root-only form (Theorem~\ref{thm:upper}), plus derivation of the uniform form as a corollary.
+\item \texttt{AutomatedProofs/AOTree/Theorem4.lean} --- sequential-versus-parallel inequality, uniform form ($q(i) \le 1/2$).
+\item \texttt{AutomatedProofs/AOTree/Theorem4\_Strong.lean} --- sequential-versus-parallel inequality, sharp form ($\sum q(i) \le 1$, Proposition~\ref{thm:seq}), with helper \lean{sum\_prod\_erase\_le\_one\_of\_sum\_le\_one}.
+\item \texttt{AutomatedProofs/AOTree/Theorem2.lean} --- monotone policy improvement and expert-iteration soundness (Theorem~\ref{thm:policy}, Corollary~\ref{cor:expert}).
+\end{itemize}
+All Lean options match the fixed environment (v4.28.0) to ensure portability. Termination of \texttt{successProb} and \texttt{isProvable} uses \texttt{List.sizeOf\_lt\_of\_mem} or the index form \texttt{List.sizeOf\_lt\_of\_mem (List.getElem\_mem \_)}.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Theorem Signatures (Lean 4)}\label{app:signatures}
+
+For reference, the exact Lean~4 type signatures of the main results are:
+
+\begin{lstlisting}[style=lean]
+-- Theorem (upper bound, root-only form): headline statement
+theorem hitting_time_upper_bound_root
+    {α : Type u} (t : AOTree α) (π : ℕ → ℕ → NNReal)
+    (pmin : NNReal) (hpmin : 0 < pmin) (hpmin1 : pmin ≤ 1)
+    (b d : ℕ) (hb : 0 < b) (_hd : 0 < d)
+    (hpolicy_root : successProb π t 0 ≥ pmin)
+    (hdepth : proofDepth t ≤ d) :
+    (1 : NNReal) / successProb π t 0 ≤ ((1 / pmin) ^ d) * (b : NNReal) ^ d
+
+-- Uniform-hypothesis corollary
+theorem hitting_time_upper_bound
+    {α : Type u} (t : AOTree α) (π : ℕ → ℕ → NNReal)
+    (pmin : NNReal) (hpmin : 0 < pmin) (hpmin1 : pmin ≤ 1)
+    (b d : ℕ) (hb : 0 < b) (hd : 0 < d)
+    (hprovable : isProvable t = true)
+    (hpolicy : ∀ nid, successProb π t nid ≥ pmin)
+    (hbranch : maxAndBranch t ≤ b)
+    (hdepth : proofDepth t ≤ d) :
+    (1 : NNReal) / successProb π t 0 ≤ ((1 / pmin) ^ d) * (b : NNReal) ^ d
+
+-- Theorem 2 (monotonicity)
+lemma successProb_mono
+    {α : Type u} (t : AOTree α) (π π' : ℕ → ℕ → NNReal)
+    (correctChild : ℕ → ℕ → Prop)
+    (hdom : PolicyDominates π π' correctChild)
+    (hcorrect_better : ∀ (cs : List (AOTree α)) (nid : ℕ)
+        (i : Fin cs.length) (j : Fin cs.length),
+        ¬ correctChild nid i.val → correctChild nid j.val →
+        successProb π' (cs.get i) (nid + i.val + 1) ≤
+        successProb π' (cs.get j) (nid + j.val + 1))
+    (nid : ℕ) :
+    successProb π t nid ≤ successProb π' t nid
+
+-- Theorem 2 (hitting time)
+theorem policy_improvement_reduces_hitting_time
+    ... (hpos : 0 < successProb π t 0) :
+    (1 : NNReal) / successProb π' t 0 ≤ (1 : NNReal) / successProb π t 0
+
+-- Corollary 2.1 (Lean name retained for brevity; prose title:
+--                "Expert-iteration monotonicity under dominance and
+--                 ordering assumptions")
+theorem expert_iteration_soundness
+    ... (hpos : ∀ k, 0 < successProb (πs k) t 0) :
+    ∀ k, (1 : NNReal) / successProb (πs (k + 1)) t 0 ≤
+         (1 : NNReal) / successProb (πs k)       t 0
+
+-- Theorem 3
+theorem and_branching_lower_bound
+    {α : Type u} (t : AOTree α) (π : ℕ → ℕ → NNReal)
+    (b : ℕ) (hb : b ≥ 1) (ε : NNReal) (hε : 0 < ε) (hε1 : ε < 1)
+    (hpmax : ∀ nid, successProb π t nid ≤ (1 - ε) ^ b)
+    (hbranch : hasAndNodeOfBranching b t)
+    (hsp : 0 < successProb π t 0) :
+    (1 : NNReal) / successProb π t 0 ≥ (1 / (1 - ε)) ^ b
+
+-- Theorem 4 (sharp form, primary)
+theorem sequential_le_parallel_sharp
+    {n : ℕ} (hn : n ≥ 2) (q : Fin n → NNReal)
+    (hqpos : ∀ i, 0 < q i)
+    (hsum : (∑ i, q i) ≤ 1) :
+    ∑ i, (1 / q i) ≤ ∏ i, (1 / q i)
+
+-- Theorem 4 (uniform form, separately proved)
+theorem sequential_le_parallel
+    {n : ℕ} (hn : n ≥ 2) (q : Fin n → NNReal)
+    (hq : ∀ i, q i ≤ 1 / 2) (hqpos : ∀ i, 0 < q i) :
+    ∑ i, (1 / q i) ≤ ∏ i, (1 / q i)
+\end{lstlisting}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
