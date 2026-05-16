@@ -1,6 +1,19 @@
 # stochastic-search-bounds
 
-Lean 4 formalization of hitting-time theorems for policy-guided AND/OR hypertree search — the theoretical foundation for neural theorem-proving complexity. Part of the [Stochastic Proofs](../stochastic-proofs-handbook) workspace.
+Lean 4 formalization of hitting-time theorems for policy-guided AND/OR hypertree search — the theoretical foundation for the complexity of neural theorem-proving. Part of the [lean-workspace](https://github.com/davidcagoh/lean-workspace) methodology workspace.
+
+## Results
+
+Four theorems on AND/OR tree search under a stochastic policy:
+
+1. **Theorem 1 — hitting-time upper bound.** A policy that puts at least probability $p$ on every successful child reaches the target within an expected number of expansions that scales polynomially with depth.
+2. **Theorem 2 — monotone policy improvement.** Under a locality-respecting weakening of "puts more mass on correct children" (`hcorrect_better`), success probability is monotone in the policy. The clean form of the hypothesis is the contribution; the original formulation is too strong.
+3. **Theorem 3 — zero-sum / policy-independent hardness.** A lower bound that holds against *any* policy, not just a fixed one.
+4. **Theorem 4 — sequential vs. parallel search.** A sharp version of the inequality $\sum q(i) \le 1$ (replacing the loose $q(i) \le 1/2$ regime).
+
+Together these characterize when policy-guided search has polynomial expected runtime and when it provably does not — directly relevant to the question of when LLM-driven theorem-proving can be tractable.
+
+**Status.** 18pp paper at `my_theorems/paper.tex`, compiles clean. **Lean formalization has 0 sorries.** `lake build` runs to completion. This is the workspace's strongest validation case: every load-bearing claim in the paper is formally verified.
 
 ## Repository structure
 
