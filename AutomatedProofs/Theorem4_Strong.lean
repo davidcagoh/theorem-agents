@@ -1,6 +1,4 @@
 import Mathlib
-import AutomatedProofs.Defs
-import AutomatedProofs.Theorem4
 
 set_option linter.style.longLine false
 set_option linter.style.whitespace false
@@ -14,7 +12,7 @@ The original `sequential_le_parallel` requires `q(i) ≤ 1/2` for every `i`. The
 threshold is `∑ q(i) ≤ 1` — strictly weaker than uniform `q(i) ≤ 1/2`.
 -/
 
-open NNReal BigOperators AOTree
+open NNReal BigOperators
 
 /-! ## Helper lemmas -/
 

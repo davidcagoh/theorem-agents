@@ -1,6 +1,5 @@
 import Mathlib
 import AutomatedProofs.Defs
-import AutomatedProofs.Theorem1
 
 set_option linter.style.longLine false
 set_option linter.style.whitespace false
